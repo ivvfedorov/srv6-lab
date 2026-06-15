@@ -1,0 +1,17 @@
+name: srv6-vpp
+
+topology:
+  nodes:
+    vpp1:
+      kind: linux
+      image: ghcr.io/srl-labs/vpp-containerlab:latest
+    host1:
+      kind: linux
+      image: wbitt/network-multitool:3.22.2
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.0.0.2/24 dev eth1
+        - ip route add 10.0.0.0/24 dev eth1
+
+  links:
+    - endpoints: ["vpp1:eth1", "host1:eth1"]
