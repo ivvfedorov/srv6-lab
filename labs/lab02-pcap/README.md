@@ -1,136 +1,69 @@
-# Исследование Data Plane через PCAP
+# Захват трафика: tcpdump на хосте
 
-**lab02** | ~1.5 ч
+**lab02** | ~30 мин
 
-## Предусловия
+Не нужно ставить tcpdump в контейнеры. Containerlab создаёт veth-пары — один конец
+в контейнере (там он `eth1`, `eth2`), второй конец на хосте. Захват на хосте видит всё,
+что проходит через линк.
 
-```bash
-make deploy
-for n in r1 r2 r3; do
-  docker exec clab-srv6-$n apk add --no-cache tcpdump
-done
-```
-
----
-
-## Задача 1. Корреляция одного пакета через несколько точек захвата
-
-У вас есть три роутера и пинг от r1 до r3. Пинг прошёл. Но прошёл ли пакет именно так,
-как предсказывает RIB? Единственный способ узнать — поймать **один и тот же** пакет
-в нескольких точках и сверить.
-
-Захватите одновременно на входе r2 и на выходе r2:
+## Как найти veth нужного линка
 
 ```bash
-docker exec clab-srv6-r2 tcpdump -ni eth1 -c 1 icmp6 &
-docker exec clab-srv6-r2 tcpdump -ni eth2 -c 1 icmp6 &
-docker exec clab-srv6-r1 ping6 -c 1 2001:db8:23::3
+# Все veth, созданные containerlab
+ip link | grep 'veth.*clab'
+
+# Какой veth соответствует линку r1 eth1 → r2
+containerlab inspect interfaces -t srv6.yml
 ```
 
-Найдите в обоих выводах **один и тот же ICMPv6 sequence number**.
+`containerlab inspect interfaces` покажет таблицу: узел, интерфейс, второй конец, MAC.
+В колонке «Host interface» — имя veth на хосте. Его и подставляйте в tcpdump.
 
-| Параметр              | eth1 (вход r2)    | eth2 (выход r2)   | Совпадает? |
-|-----------------------|-------------------|-------------------|------------|
-| ICMPv6 sequence       |                   |                   | ✓          |
-| Src MAC               |                   |                   | ✗          |
-| Dst MAC               |                   |                   | ✗          |
-| IPv6 Source           |                   |                   | ✓          |
-| IPv6 Destination      |                   |                   | ✓          |
-| Hop Limit             |                   |                   | ✗          |
-
-**Инженерный вывод**: sequence number — единственный надёжный идентификатор пакета
-при сквозной корреляции. Src/Dst MAC меняются на каждом линке, Hop Limit декрементируется,
-но IP-адреса и sequence связывают захваты в единый трейс.
-
-Если sequence не совпадает — вы смотрите на разные пакеты, ловите повторно.
-
----
-
-## Задача 2. Верификация next-hop через MAC-адрес
-
-FIB r2 говорит: next-hop к `2001:db8:23::3` — адрес r3 на линке r2↔r3.
-Но FIB — это control plane. Data plane использует MAC. Если ND-резолвинг вернул
-не тот MAC — пакет уйдёт не туда, а ping даже не заметит разницы.
-
-Проверьте, что MAC на выходном интерфейсе r2 действительно принадлежит r3:
+Если лень разбираться — tcpdump на хосте умеет фильтровать по MAC:
 
 ```bash
-# MAC интерфейса eth1 на r3 (ожидаемый next-hop)
-docker exec clab-srv6-r3 cat /sys/class/net/eth1/address
-
-# Dst MAC в захвате на r2 eth2 (фактический)
-docker exec clab-srv6-r2 tcpdump -ni eth2 -c 1 -e icmp6 &
-docker exec clab-srv6-r1 ping6 -c 1 2001:db8:23::3
+# MAC r1 на eth1 (узнайте через containerlab inspect interfaces)
+tcpdump -ni any ether host 02:xx:xx:xx:xx:xx
 ```
 
-Флаг `-e` выводит MAC-адреса. Сравните Dst MAC из захвата с MAC r3 eth1.
-
-Совпали → ND отработал. Не совпали → смотрите `ip -6 neigh` на r2, возможно,
-запись застряла в состоянии STALE с неверным MAC.
-
----
-
-## Задача 3. Обнаружение петли через аномалию Hop Limit
-
-Hop Limit уменьшается на 1 за каждый маршрутизатор. Если пакет прошёл 4 хопа,
-а топология обещает 2 — в сети петля. Если Hop Limit стал 0 — пакет зациклился
-и был отброшен.
-
-В вашей топологии r1→r3 — два хопа (r1→r2, r2→r3). Проверьте, что Hop Limit
-уменьшился ровно на 2 от отправителя до получателя:
+## Основные команды
 
 ```bash
-# Hop Limit на выходе r1 (исходный)
-docker exec clab-srv6-r1 tcpdump -ni eth1 -c 1 -v icmp6 &
-docker exec clab-srv6-r1 ping6 -c 1 -t 64 2001:db8:23::3
-# Ищите: hlim 64
+# ICMPv6 между r1 и r2
+tcpdump -ni vethXXX icmp6
+
+# Всё, что идёт через линк (ICMPv6 + IS-IS Hello + LSP)
+tcpdump -ni vethXXX
+
+# С MAC-адресами (-e)
+tcpdump -ni vethXXX -e
+
+# Подробный вывод (-v), с MAC (-e), только 5 пакетов (-c 5)
+tcpdump -ni vethXXX -e -v -c 5
+
+# Сохранить в pcap для Wireshark, без DNS-резолвинга (-n)
+tcpdump -ni vethXXX -n -w /tmp/link.pcap
 ```
+
+## Фильтры
 
 ```bash
-# Hop Limit на входе r3 (конечный)
-docker exec clab-srv6-r3 tcpdump -ni eth1 -c 1 -v icmp6 &
-docker exec clab-srv6-r1 ping6 -c 1 -t 64 2001:db8:23::3
-# Ожидается: hlim 62
+tcpdump -ni vethXXX icmp6                           # только ICMPv6
+tcpdump -ni vethXXX ip6                             # любой IPv6
+tcpdump -ni vethXXX 'icmp6 and ip6[40] == 128'      # только Echo Request
+tcpdump -ni vethXXX 'icmp6 and ip6[40] == 129'      # только Echo Reply
+tcpdump -ni vethXXX 'host 2001:db8:12::1'           # от/к конкретному адресу
+tcpdump -ni vethXXX 'net 2001:db8:12::/64'          # трафик конкретной сети
+tcpdump -ni vethXXX proto 124                       # IS-IS (протокол 124)
 ```
 
-Флаг `-t 64` у ping6 явно задаёт начальный Hop Limit (по умолчанию 64, но лучше
-контролировать). Флаг `-v` у tcpdump включает verbose (`hlim N`).
+## Что искать в дампе
 
-| Точка захвата  | Ожидаемый hlim | Фактический | Аномалия? |
-|----------------|----------------|-------------|-----------|
-| r1 eth1 (выход) | 64             |             |           |
-| r3 eth1 (вход)  | 62             |             |           |
-
-Разница больше 2 → в сети больше двух хопов (петля или обходной путь).
-Разница меньше 2 → пакет не прошёл через r2 (короткий путь, которого не должно быть).
-
----
-
-## Справка: фильтры в Wireshark (pcap)
-
-| Фильтр                        | Назначение                                     |
-|-------------------------------|------------------------------------------------|
-| `icmpv6`                      | Только ICMPv6                                  |
-| `icmpv6.type == 128`          | Echo Request                                   |
-| `icmpv6.type == 129`          | Echo Reply                                     |
-| `icmpv6.ident == X`           | По идентификатору (pid отправителя)            |
-| `icmpv6.seq == Y`             | По sequence number                             |
-| `ipv6.src == 2001:db8:12::1`  | Пакеты от конкретного отправителя              |
-| `eth.src == aa:bb:cc:dd:ee:ff`| Кадры с конкретного MAC                        |
-| `ipv6.hlim < 5`               | Пакеты с низким Hop Limit (близки к дропу)     |
-| `isis`                        | IS-IS PDU (Hello, LSP, SNP)                    |
-| `frame.time_relative < 1`     | Первая секунда захвата                         |
-
----
-
-## Памятка: симптомы в дампе → диагноз
-
-| Симптом                                      | Диагноз                                         |
-|----------------------------------------------|-------------------------------------------------|
-| Dst MAC ≠ ожидаемый next-hop                | ND/ARP не разрешился или разрешился неверно     |
-| Hop Limit = 0                               | Петля, пакет отброшен                           |
-| Hop Limit уменьшился больше ожидаемого      | Петля или неожиданный обходной путь             |
-| Пакет есть на eth1 r2, нет на eth2 r2       | FIB r2 не содержит маршрут — пакет дропнут      |
-| Только Request, нет Reply                   | Обратный маршрут отсутствует или асимметричен   |
-| tcpdump на eth0 пуст при работающем ping    | Норма: mgmt-сеть изолирована от data            |
-| IS-IS Hello есть, ICMPv6 нет                | Control plane жив, data plane сломан (iptables) |
+| Что видно                 | Как искать                       |
+|---------------------------|----------------------------------|
+| ICMPv6 Echo Request       | `icmp6`, строка `echo request`   |
+| ICMPv6 Echo Reply         | `icmp6`, строка `echo reply`     |
+| IS-IS Hello               | `proto 124`, dst `ff02::5`       |
+| IS-IS LSP                 | `proto 124`, большой пакет       |
+| IPv6 ND (Neighbor Discovery)| `icmp6`, type 135/136          |
+| Пакет с низким TTL        | `tcpdump -v`, `hlim 1`           |
