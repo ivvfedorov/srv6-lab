@@ -1,6 +1,7 @@
 # SRv6 Reference Configuration
 
-Эталонные конфиги для ЛР5–ЛР7. Базовые конфиги (без SRv6): `configs/r*/frr.conf`.
+Эталонные конфиги для ЛР5–ЛР11. Базовые конфиги без SRv6 находятся в `configs/r*/frr.conf`.
+SRv6-режим разворачивается через `srv6-reference.yml`, VPN-режим — через `srv6-vpn.yml`.
 
 ## Locator plan
 
@@ -18,7 +19,7 @@
 | r2 | `49.0001.0000.0000.0002.00` |
 | r3 | `49.0001.0000.0000.0003.00` |
 
-## Автовыделенные SID (после apply)
+## Автовыделенные SID (после `make srv6`)
 
 IS-IS SRv6 автоматически создаёт:
 
@@ -34,6 +35,9 @@ IS-IS SRv6 автоматически создаёт:
 ```bash
 make srv6
 ```
+
+Команда пересоздаёт lab `srv6` с bind-mount на `configs/srv6/r*/frr.conf`. Она не копирует
+конфиги поверх `configs/r*/frr.conf` и не должна менять рабочее дерево git.
 
 ## Откат к базовому IS-IS (без SRv6)
 
@@ -69,16 +73,18 @@ ip -6 route add 2001:db8:3::3/128 encap seg6 mode encap \
 
 | Node | AS | Router-ID |
 |------|-----|----------|
-| r1 | 65001 | 1.1.1.1 |
-| r2 | 65002 (route-reflector) | 2.2.2.2 |
-| r3 | 65003 | 3.3.3.3 |
+| r1 | 65000 | 1.1.1.1 |
+| r2 | 65000 (route-reflector) | 2.2.2.2 |
+| r3 | 65000 | 3.3.3.3 |
 
 ## VRF для L3VPN
 
 | Node | VRF | VNI | IPv4 Loopback | IPv6 Loopback | End.DT4 SID | End.DT6 SID |
 |------|-----|-----|---------------|---------------|-------------|-------------|
-| r1 | TENANT_A | 101 | `192.168.1.1/32` | `2001:db8:dead::1/128` | `2001:db8:1:a404::` | `2001:db8:1:a606::` |
-| r3 | TENANT_A | 101 | `192.168.3.1/32` | `2001:db8:beef::1/128` | `2001:db8:3:a404::` | `2001:db8:3:a606::` |
+| r1 | TENANT_A | 101 | `192.168.1.1/32` | `2001:db8:dead::1/128` | auto-assigned (`auto-sid`) | auto-assigned (`auto-sid`) |
+| r3 | TENANT_A | 101 | `192.168.3.1/32` | `2001:db8:beef::1/128` | auto-assigned (`auto-sid`) | auto-assigned (`auto-sid`) |
+
+Узнать реальные SID после развёртывания: `vtysh -c "show segment-routing srv6 sid" | grep uDT`.
 
 ## SR Policy SID Allocation (ЛР10)
 
@@ -100,16 +106,18 @@ Locator (B=64 бит)    | Function (N бит)         | Argument (опц.)
 
 | Узел | VRF | Интерфейс | IPv4 | IPv6 |
 |------|-----|-----------|------|------|
-| r1 | TENANT_A | lo:1 (dummy) | `192.168.1.1/32` | `2001:db8:dead::1/128` |
-| r1 | TENANT_A | eth3 (к CE) | `10.1.1.1/24` | `2001:db8:cafe:1::1/64` |
-| r3 | TENANT_A | lo:1 (dummy) | `192.168.3.1/32` | `2001:db8:beef::1/128` |
-| r3 | TENANT_A | eth3 (к CE) | `10.3.3.1/24` | `2001:db8:cafe:3::1/64` |
+| r1 | TENANT_A | tenant-a (dummy) | `192.168.1.1/32` | `2001:db8:dead::1/128` |
+| r3 | TENANT_A | tenant-a (dummy) | `192.168.3.1/32` | `2001:db8:beef::1/128` |
+
+В текущем стенде CE эмулируется dummy-интерфейсом `tenant-a` внутри Linux VRF `TENANT_A`.
+Отдельные CE-контейнеры и линки `eth3` намеренно не используются, чтобы ЛР11 фокусировалась на
+BGP VPNv6 и End.DT SID.
 
 ## BGP Peering для L3VPN
 
 ```
-r1 (PE, AS 65001) ←→ r2 (RR, AS 65002)
-r3 (PE, AS 65003) ←→ r2 (RR, AS 65002)
+r1 (PE, AS 65000) ←→ r2 (RR, AS 65000)
+r3 (PE, AS 65000) ←→ r2 (RR, AS 65000)
 
 Address-family: IPv6 VPN (AFI=2, SAFI=128)
 Next-hop: loopback (2001:db8:1::1 для r1, 2001:db8:3::3 для r3)

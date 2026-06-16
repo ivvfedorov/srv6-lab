@@ -24,7 +24,7 @@ containerlab exec -t srv6.yml --cmd "hostname; ip -6 -br addr; vtysh -c 'show is
 ## Топология
 
 ```
-r1 (172.20.20.4) --- r2 (172.20.20.3) --- r3 (172.20.20.2)
+r1 (mgmt: Containerlab-назначен) --- r2 (mgmt: Containerlab-назначен) --- r3 (mgmt: Containerlab-назначен)
      eth1                  eth1 / eth2              eth1
  2001:db8:12::/64      2001:db8:12::/64         2001:db8:23::/64
                        2001:db8:23::/64
@@ -32,9 +32,11 @@ r1 (172.20.20.4) --- r2 (172.20.20.3) --- r3 (172.20.20.2)
 
 | Узел | Контейнер | Mgmt IPv4 | Data IPv6 |
 |------|-----------|-----------|-----------|
-| r1 | `clab-srv6-r1` | 172.20.20.4 | `2001:db8:12::1/64`, lo `2001:db8:1::1/128` |
-| r2 | `clab-srv6-r2` | 172.20.20.3 | `2001:db8:12::2/64`, `2001:db8:23::2/64`, lo `2001:db8:2::2/128` |
-| r3 | `clab-srv6-r3` | 172.20.20.2 | `2001:db8:23::3/64`, lo `2001:db8:3::3/128` |
+| r1 | `clab-srv6-r1` | назначается Containerlab | `2001:db8:12::1/64`, lo `2001:db8:1::1/128` |
+| r2 | `clab-srv6-r2` | назначается Containerlab | `2001:db8:12::2/64`, `2001:db8:23::2/64`, lo `2001:db8:2::2/128` |
+| r3 | `clab-srv6-r3` | назначается Containerlab | `2001:db8:23::3/64`, lo `2001:db8:3::3/128` |
+
+Узнать реальный mgmt IP: `containerlab inspect -t srv6.yml` или `make status`.
 
 ## Развёртывание
 
@@ -49,7 +51,28 @@ make status
 make clean
 ```
 
-После `deploy` FRR читает конфиги из `configs/r*/frr.conf` (bind-mount).
+После `deploy` FRR читает базовые конфиги из `configs/r*/frr.conf` (bind-mount). Это режим
+для ЛР1-ЛР4: IPv6 forwarding и IS-IS есть, SRv6 ещё не включён.
+FRR-образ закреплён в topology-файлах как `frrouting/frr:v8.4.0`, чтобы лабораторные не зависели
+от изменений Docker-тега `latest`.
+
+Для SRv6-лабораторных используется отдельный topology-файл с тем же именем стенда:
+
+```bash
+make srv6
+```
+
+Он пересоздаёт контейнеры `clab-srv6-r1..r3`, но монтирует `configs/srv6/r*/frr.conf`.
+Так базовый и SRv6-режимы не перезаписывают друг друга в репозитории.
+
+Для BGP SRv6 L3VPN используется третий режим:
+
+```bash
+make vpn
+```
+
+Он использует `srv6-vpn.yml`, создаёт Linux VRF `TENANT_A` с dummy-интерфейсом `tenant-a`,
+включает `bgpd=yes` и монтирует `configs/srv6/r*/frr-vpn.conf`.
 
 ## Доступ к узлам
 
@@ -115,15 +138,20 @@ docker cp clab-srv6-r2:/tmp/lab.pcap ~/lab.pcap
 
 ## SRv6 reference config
 
-Эталонные конфиги SRv6 для ЛР5–ЛР7: `configs/srv6/r*/frr.conf`
+Эталонные конфиги SRv6 для ЛР5-ЛР7 и ЛР10: `configs/srv6/r*/frr.conf`.
+Для ЛР11 используются VPN-конфиги `configs/srv6/r*/frr-vpn.conf`.
 
-Применить на работающей лабе:
+Переключить стенд в SRv6-режим:
 
 ```bash
 make srv6
 ```
 
-Или пересоздать лабу с bind-mount на srv6-конфиги (см. `labs/lab05-srv6-basic/README.md`).
+Вернуться к базовому режиму без SRv6:
+
+```bash
+make redeploy
+```
 
 ## Программа обучения
 
@@ -134,5 +162,8 @@ make srv6
 | 3 | SRv6 | [lab05](../labs/lab05-srv6-basic/), [lab06](../labs/lab06-srv6-behaviors/), [lab07](../labs/lab07-srv6-troubleshoot/) |
 | 4 | VPP, DPDK, eBPF | [lab08](../labs/lab08-vpp/), [lab09](../labs/lab09-ebpf/) |
 | 5 | Advanced SRv6 | [lab10](../labs/lab10-srv6-policy/), [lab11](../labs/lab11-srv6-vpn/) |
+
+Перед ЛР1-ЛР4 прочитайте [theory-foundations.md](theory-foundations.md) до раздела 6.
+Перед ЛР5-ЛР11 дополнительно прочитайте разделы 7-10.
 
 Подробнее: [cheatsheet.md](cheatsheet.md), [lab-format.md](lab-format.md)

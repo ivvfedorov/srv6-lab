@@ -3,8 +3,20 @@
 ## Containerlab
 
 ```bash
+make deploy        # base IPv6 + IS-IS, без SRv6
+make srv6          # SRv6 reference topology
+make vpn           # SRv6 + BGP L3VPN topology
+make verify
+make clean
+make vpp
+```
+
+Эквиваленты Containerlab:
+
+```bash
 containerlab deploy -t srv6.yml
-containerlab destroy -t srv6.yml
+containerlab deploy -t srv6-reference.yml --reconfigure
+containerlab deploy -t srv6-vpn.yml --reconfigure
 containerlab inspect -t srv6.yml
 containerlab inspect interfaces -t srv6.yml
 containerlab exec -t srv6.yml --cmd "команда"
@@ -129,9 +141,10 @@ vtysh -c "show vrf TENANT_A"
 vtysh -c "show ipv6 route vrf TENANT_A"
 ```
 
-### Flex-Algo (BGP SRv6)
+### Flex-Algo (advanced, не используется в базовых лабах)
 
 ```bash
+# Требует Flex-Algo конфигурации в IS-IS (отдельный locator с algorithm != 0)
 vtysh -c "show isis flex-algo"
 vtysh -c "show segment-routing srv6 locator LOC_LOWLAT detail"
 ```
@@ -139,18 +152,19 @@ vtysh -c "show segment-routing srv6 locator LOC_LOWLAT detail"
 ### Конфигурация VRF + BGP L3VPN (фрагмент)
 
 ```bash
-vtysh -c "configure terminal"
-vtysh -c " vrf TENANT_A"
-vtysh -c "  vni 101"
-vtysh -c " exit-vrf"
-vtysh -c " router bgp 65001"
-vtysh -c "  address-family ipv6 vpn"
-vtysh -c "   neighbor 2001:db8:3::3 activate"
-vtysh -c "   segment-routing srv6"
-vtysh -c "    locator LOC1"
-vtysh -c "   exit"
-vtysh -c "  exit-address-family"
-vtysh -c " exit"
+# Применить блок конфигурации за один вызов vtysh:
+vtysh -c "conf t" \
+  -c " vrf TENANT_A" \
+  -c "  vni 101" \
+  -c " exit-vrf" \
+  -c " router bgp 65000" \
+  -c "  address-family ipv6 vpn" \
+  -c "   neighbor 2001:db8:2::2 activate" \
+  -c "   segment-routing srv6" \
+  -c "    locator LOC1" \
+  -c "   exit" \
+  -c "  exit-address-family" \
+  -c " end"
 ```
 
 ## SRv6 OAM (ping / traceroute с SRH)
@@ -233,7 +247,7 @@ sudo bpftrace -e 'kprobe:netif_receive_skb { @[comm] = count(); }'
 - [Containerlab docs](https://containerlab.dev)
 - [FRR docs](https://docs.frrouting.org/en/latest/)
 - [Linux SRv6 kernel](https://docs.kernel.org/networking/seg6.html)
-- [RFC 8754 — SRv6 Network Programming](https://datatracker.ietf.org/doc/html/rfc8754)
+- [RFC 8754 — IPv6 Segment Routing Header (SRH)](https://datatracker.ietf.org/doc/html/rfc8754)
 - [RFC 8986 — SRv6 Network Programming (behaviours)](https://datatracker.ietf.org/doc/html/rfc8986)
 - [RFC 9256 — SR Policy Architecture](https://datatracker.ietf.org/doc/html/rfc9256)
 - [RFC 9350 — IGP Flexible Algorithm](https://datatracker.ietf.org/doc/html/rfc9350)

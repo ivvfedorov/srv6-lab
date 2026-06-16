@@ -6,6 +6,19 @@
 
 Включить SRv6 locators через IS-IS на r1—r2—r3, увидеть SID'ы в FRR и kernel.
 
+После выполнения студент должен понимать, чем обычная IPv6-связность отличается от SRv6-
+готовой сети, и почему наличие locator/SID нужно проверять отдельно от ping.
+
+## Что нужно знать заранее
+
+- Из ЛР1-ЛР4: интерфейсы Linux, IPv6-маршруты, FRR RIB, kernel FIB, IS-IS соседства.
+- SID в SRv6 — это IPv6-адрес, который кодирует сетевое действие.
+- Locator — routable-префикс, по которому сеть доставляет пакет к узлу-владельцу SID.
+- SRv6 control plane в этой лаборатории строится через IS-IS.
+
+Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
+разделы 7-9.
+
 ## Теория
 
 SRv6 использует IPv6-адрес как Segment Identifier (SID). Locator — это префикс, который
@@ -17,13 +30,40 @@ SRv6 использует IPv6-адрес как Segment Identifier (SID). Locat
 для доказательства SRv6 нужно дополнительно увидеть locator, SID и, где применимо, записи
 `seg6`/`seg6local` в Linux.
 
+Минимальная модель SRv6 в этой ЛР:
+
+```text
+r1 owns locator 2001:db8:1::/64
+r2 owns locator 2001:db8:2::/64
+r3 owns locator 2001:db8:3::/64
+
+IS-IS advertises locator reachability
+FRR allocates local SID behavior
+zebra installs routes/SID handling into Linux
+```
+
+Нужно различать два результата:
+
+| Результат | Что доказывает | Команда |
+|-----------|----------------|---------|
+| r1 пингует loopback r3 | Обычная IPv6 reachability работает | `ping6 2001:db8:3::3` |
+| Locator `Up` | FRR принял SRv6 locator | `show segment-routing srv6 locator` |
+| SID отображается | FRR создал SID behavior | `show segment-routing srv6 sid` |
+| `seg6`/`seg6local` виден | Kernel получил SRv6 dataplane state | `ip -6 route show table all` |
+
 ## Предусловия
 
-Базовая лаба с IS-IS:
+Базовая лаба с IPv6 + IS-IS без SRv6:
 
 ```bash
 make deploy
 make verify
+```
+
+Перед применением SRv6 убедитесь, что команда ниже не показывает SRv6 locator в базовом режиме:
+
+```bash
+docker exec clab-srv6-r1 vtysh -c "show segment-routing srv6 locator"
 ```
 
 ## Задания
@@ -39,17 +79,18 @@ make verify
 ### 2. Примените SRv6
 
 ```bash
-chmod +x labs/lab05-srv6-basic/apply-srv6.sh
-./labs/lab05-srv6-basic/apply-srv6.sh
-```
-
-Или короче:
-
-```bash
 make srv6
 ```
 
 Подождите ~30 с для convergence IS-IS.
+
+`make srv6` использует `srv6-reference.yml` и не перезаписывает `configs/r*/frr.conf`.
+
+Альтернативный wrapper для той же операции:
+
+```bash
+./labs/lab05-srv6-basic/apply-srv6.sh
+```
 
 ### 3. Проверка locators и SID
 
@@ -67,6 +108,12 @@ docker exec clab-srv6-r1 ip -6 route show table all | grep -i seg6 || true
 docker exec clab-srv6-r1 sysctl net.ipv6.conf.all.seg6_enabled
 ```
 
+Интерпретация:
+
+- FRR output отвечает на вопрос “что решил control plane”.
+- `ip -6 route show table all` отвечает на вопрос “что получил kernel”.
+- `sysctl seg6_enabled` отвечает на вопрос “разрешена ли обработка SRv6 на уровне ядра”.
+
 ### 5. Connectivity
 
 ```bash
@@ -81,6 +128,10 @@ docker exec clab-srv6-r2 tcpdump -ni eth1 -c 20 -vv ip6 2>&1 | head -30
 ```
 
 Ищите Routing Header Type 4 при policy-based encapsulation.
+
+В этой базовой ЛР SRH может не появиться при обычном ping, потому что обычная reachability до
+loopback r3 идёт по IGP shortest path. SRH ожидается в ЛР10, когда headend явно добавляет
+segment list.
 
 ## Expected output
 
@@ -111,3 +162,17 @@ $ ping6 -c 3 2001:db8:3::3
 - [ ] Таблица SID заполнена (uN, uA на adjacency)
 
 Справочник SID: [configs/srv6/README.md](../../configs/srv6/README.md)
+
+## Контрольные вопросы
+
+1. Почему ping r1 -> r3 не доказывает сам по себе, что SRv6 работает?
+2. Чем locator отличается от loopback-адреса узла?
+3. Почему IS-IS должен анонсировать locator-префиксы?
+4. Где проходит граница между SRv6 control plane и kernel dataplane?
+
+## Требования к отчёту
+
+- Таблица locator'ов r1/r2/r3 со статусом `Up`.
+- Таблица SID на каждом узле: SID, behavior, context.
+- Сравнение базового режима `make deploy` и SRv6-режима `make srv6`.
+- Короткое объяснение, почему SRH не обязан появляться при обычном ping.

@@ -6,6 +6,19 @@
 
 Наблюдать kernel networking через eBPF/bpftrace без написания LKM.
 
+После выполнения студент должен понимать eBPF как инструмент наблюдения за kernel path, а не
+как “магическую” замену tcpdump, strace или FRR-команд.
+
+## Что нужно знать заранее
+
+- Kernel обрабатывает сетевые пакеты через функции и tracepoint'ы.
+- `tcpdump` показывает пакет на интерфейсе, но не показывает внутренний путь в kernel.
+- `strace` показывает userspace syscall'ы, но не показывает все kernel events.
+- eBPF/bpftrace позволяет безопасно подписываться на kernel events.
+
+Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
+раздел 12.
+
 ## Теория
 
 eBPF позволяет безопасно запускать небольшие программы в kernel context и наблюдать события
@@ -16,6 +29,19 @@ eBPF позволяет безопасно запускать небольшие
 В этой ЛР eBPF используется только для observability: мы не меняем пакеты, а считаем события
 сетевого стека. Для SRv6 это полезно как следующий уровень после FRR, `ip -6 route` и pcap:
 можно увидеть, что пакет действительно проходит через kernel networking path.
+
+Сравнение инструментов наблюдения:
+
+| Инструмент | Что видит | Что не видит |
+|------------|-----------|--------------|
+| `vtysh` | Control plane FRR | Внутренние kernel-функции |
+| `ip -6 route` | Kernel FIB snapshot | Историю прохождения пакета |
+| `tcpdump` | Пакеты на интерфейсе | Внутренние kernel-события |
+| `strace` | Syscall'ы процесса | Обработку пакетов после syscall |
+| `bpftrace` | Kernel functions/tracepoints | Полный pcap без отдельной логики |
+
+В production eBPF часто используют для observability: latency, drops, counts, top talkers,
+debug конкретных code path. В этой ЛР мы делаем только безопасный read-only tracing.
 
 ## Предусловия
 
@@ -42,6 +68,10 @@ docker exec clab-srv6-r1 ping6 -c 5 2001:db8:23::3
 ```
 
 Ctrl+C — смотрите счётчики.
+
+Интерпретация: счётчик показывает, что во время генерации трафика kernel вызывал функцию
+приёма пакетов. Значение счётчика не обязано равняться количеству ICMP-пакетов один к одному,
+потому что kernel path включает служебные события и особенности namespace/bridge.
 
 ### 2. Tracepoint: netif_receive_skb (если доступен)
 
@@ -77,6 +107,19 @@ sudo bpftrace -e 'tracepoint:syscalls:sys_enter_write /comm == "vtysh"/ { printf
 - [ ] Запустить bpftrace без ошибок
 - [ ] Объяснить разницу kprobe и tracepoint
 - [ ] Назвать 3 инструмента kernel debug: `dmesg`, `tracepoint`, `bpftrace`
+
+## Контрольные вопросы
+
+1. Почему tracepoint обычно стабильнее kprobe?
+2. Чем bpftrace отличается от tcpdump?
+3. Почему eBPF-программы проходят verifier перед запуском?
+4. Что можно доказать счётчиком `netif_receive_skb`, а что нельзя?
+
+## Требования к отчёту
+
+- Команда bpftrace и вывод счётчиков после генерации ping.
+- Краткое сравнение kprobe и tracepoint.
+- Объяснение, на каком уровне observability находится eBPF относительно FRR и tcpdump.
 
 ## Связь с SRv6
 

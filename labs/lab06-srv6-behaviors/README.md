@@ -6,6 +6,19 @@
 
 Различать End (uN), End.X (uA), понять decapsulation End.DT6; составить таблицу SID.
 
+После выполнения студент должен уметь прочитать вывод `show segment-routing srv6 sid` и
+объяснить не только адрес SID, но и действие, которое выполнит узел при получении пакета.
+
+## Что нужно знать заранее
+
+- SID — это IPv6-адрес с привязанным behavior.
+- Locator доставляет пакет до узла, function задаёт действие на узле.
+- IS-IS в этой лаборатории автоматически создаёт часть SID для node и adjacency.
+- End.DT6 появляется в сервисных сценариях VRF/L3VPN, а не в простой reachability.
+
+Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
+раздел 9.
+
 ## Теория
 
 SRv6 behavior — это действие, которое узел выполняет, когда Destination Address пакета равен
@@ -17,6 +30,17 @@ End SID и `uA` как adjacency End.X SID. `uN` привязан к locator'у 
 указывает на adjacency. Для сервисных сценариев позже появляется End.DT6: он не просто
 пересылает пакет дальше, а деинкапсулирует внешний IPv6/SRH и делает lookup внутреннего IPv6
 пакета в VRF.
+
+Для чтения SID используйте таблицу:
+
+| Behavior в FRR | Академическое имя | Простая интерпретация | Где проверять |
+|----------------|-------------------|-----------------------|---------------|
+| `uN` | End/uN | “Это SID самого узла” | locator/node SID |
+| `uA` | End.X/uA | “Перешли через конкретную adjacency” | context `interface ethX` |
+| `uDT6` | End.DT6 | “Деинкапсулировать IPv6 в VRF” | ЛР11, VRF service SID |
+
+Ошибочное, но частое упрощение: “SID — это просто адрес”. В SRv6 адрес важен только вместе с
+behavior. Один и тот же формат IPv6-адреса может означать разные действия.
 
 ## Предусловия
 
@@ -47,12 +71,18 @@ docker exec clab-srv6-r3 vtysh -c "show segment-routing srv6 sid"
 | r2 | | uN | |
 | ... | | | |
 
+В отчёте не оставляйте пустой context. Если context неочевиден, укажите вывод команды полностью
+и объясните, почему behavior классифицирован как node или adjacency SID.
+
 ### 2. End vs End.X
 
 - **uN (End)**: SID узла, pop и forward по inner destination
 - **uA (End.X)**: cross-connect на конкретный interface/adjacency
 
 Найдите uA SID на r2 для eth1 (к r1) и eth2 (к r3).
+
+Важная проверка понимания: r2 имеет два adjacency SID, потому что у r2 два data-интерфейса.
+r1 и r3 в этой топологии имеют по одному adjacency SID, потому что у каждого один data-линк.
 
 ### 3. Traceroute по locator
 
@@ -83,7 +113,7 @@ exit
 
 ### 5. End.DT6 (обзор)
 
-Прочитайте [RFC 8754 — End.DT6](https://datatracker.ietf.org/doc/html/rfc8754). В FRR static behavior:
+Прочитайте [RFC 8986 — End.DT6](https://datatracker.ietf.org/doc/html/rfc8986). В FRR static behavior:
 
 ```
 segment-routing
@@ -101,6 +131,9 @@ segment-routing
 
 Применение optional — зафиксируйте в `show segment-routing srv6 sid` новую запись.
 
+End.DT6 пока рассматривается концептуально. Полная проверка появится в ЛР11, где VRF `TENANT_A`
+будет связан с service SID и BGP VPNv6.
+
 ## Expected output
 
 ```
@@ -117,3 +150,16 @@ SID                   Behavior    Context
 - [ ] Таблица SID→behavior→контекст для всех узлов
 - [ ] Объяснить разницу uN и uA на примере r2
 - [ ] Описать, что произошло при отключении IS-IS на eth2
+
+## Контрольные вопросы
+
+1. Почему у r2 больше adjacency SID, чем у r1?
+2. Что означает `Context: interface eth2` в выводе SID?
+3. Чем End.DT6 принципиально отличается от End.X?
+4. Почему отключение IS-IS на интерфейсе влияет на SID/locator reachability?
+
+## Требования к отчёту
+
+- Полная таблица SID по r1/r2/r3.
+- Отдельное объяснение для каждого behavior: `uN`, `uA`, `uDT6`.
+- Краткий анализ failure injection: симптом, какие команды это показали, как восстановили.

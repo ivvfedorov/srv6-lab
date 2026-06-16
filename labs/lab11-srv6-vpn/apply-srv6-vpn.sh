@@ -1,39 +1,33 @@
-#!/bin/bash
-# apply-srv6-vpn.sh — применить конфиги SRv6 + BGP L3VPN
+#!/usr/bin/env bash
+# apply-srv6-vpn.sh — recreate the lab with SRv6 + BGP L3VPN configs.
 # Использование: ./apply-srv6-vpn.sh
 
-set -e
+set -euo pipefail
 
 LAB_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$LAB_DIR/../.." && pwd)"
-CONFIG_DIR="$REPO_DIR/configs/srv6"
+cd "$REPO_DIR"
 
 echo "=== Применяю SRv6 VPN конфигурацию ==="
 
-# 1. Копируем daemons с bgpd=yes
-echo "[1/3] Копирую daemons с bgpd=yes..."
-docker cp "$CONFIG_DIR/r1/daemons-vpn" clab-srv6-r1:/etc/frr/daemons
-docker cp "$CONFIG_DIR/r2/daemons-vpn" clab-srv6-r2:/etc/frr/daemons
-docker cp "$CONFIG_DIR/r3/daemons-vpn" clab-srv6-r3:/etc/frr/daemons
-
-# 2. Копируем FRR конфиги с VRF и BGP VPN
-echo "[2/3] Копирую FRR конфиги..."
-docker cp "$CONFIG_DIR/r1/frr-vpn.conf" clab-srv6-r1:/etc/frr/frr.conf
-docker cp "$CONFIG_DIR/r2/frr-vpn.conf" clab-srv6-r2:/etc/frr/frr.conf
-docker cp "$CONFIG_DIR/r3/frr-vpn.conf" clab-srv6-r3:/etc/frr/frr.conf
-
-# 3. Перезапускаем FRR на всех узлах
-echo "[3/3] Перезапускаю FRR..."
-docker exec clab-srv6-r1 /usr/lib/frr/frrinit.sh restart
-docker exec clab-srv6-r2 /usr/lib/frr/frrinit.sh restart
-docker exec clab-srv6-r3 /usr/lib/frr/frrinit.sh restart
+echo "[1/3] Recreating topology with srv6-vpn.yml..."
+containerlab deploy -t srv6-vpn.yml --reconfigure
 
 echo ""
-echo "=== Готово. Ждём 30 секунд для сходимости IS-IS + BGP..."
-sleep 30
+echo "[2/3] Reloading FRR after Linux VRF interfaces are created..."
+sleep 5
+containerlab exec -t srv6-vpn.yml --cmd "vtysh -b"
+
+echo ""
+echo "[3/3] Waiting 25 seconds for IS-IS + BGP convergence..."
+sleep 25
 
 echo ""
 echo "=== Проверка ==="
+echo ""
+echo "VRF links:"
+docker exec clab-srv6-r1 ip -br link show tenant-a
+docker exec clab-srv6-r3 ip -br link show tenant-a
 echo ""
 echo "IS-IS neighbors:"
 docker exec clab-srv6-r1 vtysh -c "show isis neighbor"

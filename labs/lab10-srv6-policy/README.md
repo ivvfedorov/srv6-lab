@@ -7,6 +7,20 @@
 Понять и сконструировать SR Policy вручную: явный segment list через ядро Linux,
 изучить концепцию Candidate Path и Binding SID, сравнить явный путь с IGP shortest-path.
 
+После выполнения студент должен уметь объяснить, кто выбирает путь в IGP, кто выбирает путь
+в SR Policy, и почему статический kernel-encap не является полноценной динамической TE-системой.
+
+## Что нужно знать заранее
+
+- Из ЛР5: locator и SID должны быть доступны через IS-IS.
+- Из ЛР6: End/uN и End.X/uA отличаются по смыслу и context.
+- Из ЛР7: SRH нужно подтверждать packet capture, а не только успешным ping.
+- `ip -6 route ... encap seg6` создаёт статическую dataplane-политику в Linux kernel.
+
+Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
+разделы 7-9, и [../../docs/theory-srv6-advanced.md](../../docs/theory-srv6-advanced.md),
+раздел 3.
+
 ## Теория
 
 IGP shortest-path выбирает путь по топологии и метрикам протокола маршрутизации. SR Policy
@@ -20,6 +34,20 @@ Linux `seg6 mode encap`.
 только успешный ping, но и захват Routing Header Type 4 в pcap.
 
 Подробнее: [расширенная теория, раздел 3](../../docs/theory-srv6-advanced.md#3-sr-policy-основа-source-routing).
+
+Термины, которые нужно различать:
+
+| Термин | Академическое значение | В этой ЛР |
+|--------|------------------------|-----------|
+| Headend | Узел, который применяет policy и инкапсулирует пакет | r1 |
+| Endpoint | Конечная точка policy | loopback r3 `2001:db8:3::3` |
+| Segment List | Упорядоченный список SID | `[r2 End.X, r3 End]` |
+| Candidate Path | Вариант пути внутри policy | Эмулируется разными route entries |
+| BSID | SID, ссылающийся на policy | Эмулируется policy routing |
+
+Ограничение лабораторной модели: Linux static seg6 encap показывает механику SRH, но не
+реализует полноценный SR Policy control plane с preference, liveness detection и автоматическим
+переключением. Это важно указать в отчёте.
 
 ## Предусловия
 
@@ -44,7 +72,7 @@ docker exec clab-srv6-r1 vtysh -c "show isis neighbor"
 docker exec clab-srv6-r1 traceroute6 -n 2001:db8:3::3
 # Ожидаемый результат:
 # 1. 2001:db8:12::2  (r2 eth1)
-# 2. 2001:db8:23::3  (r3 eth2)
+# 2. 2001:db8:23::3  (r3 eth1)
 # 3. 2001:db8:3::3   (r3 lo)
 ```
 
@@ -68,7 +96,7 @@ docker exec clab-srv6-r3 vtysh -c "show segment-routing srv6 sid"
 | r2 | `2001:db8:2:e000::` | uA | eth1 (→ r1) |
 | r2 | `2001:db8:2:e001::` | uA | eth2 (→ r3) |
 | r3 | `2001:db8:3::` | uN | isis(0) |
-| r3 | `2001:db8:3:e000::` | uA | eth2 (→ r2) |
+| r3 | `2001:db8:3:e000::` | uA | eth1 (→ r2) |
 
 ### 2. Ручной SR Policy через kernel encap
 
@@ -206,6 +234,9 @@ docker exec clab-srv6-r1 ping6 -c 1 2001:db8:1:b001::
 | Меняется ли при падении линка? | | |
 | Где настраивается? | | |
 
+После таблицы напишите 5-7 предложений: в каком случае оператору достаточно IGP shortest path,
+а в каком нужна явная SR Policy.
+
 ### 7. Очистка
 
 ```bash
@@ -246,6 +277,22 @@ $ docker exec clab-srv6-r1 ip -6 route show 2001:db8:3::3
 - [ ] Таблица сравнения Shortest Path vs SR Policy заполнена
 - [ ] Объяснить, почему при Policy путь не меняется при падении линка
       (подсказка: kernel-encap — статический, нет динамической защиты)
+
+## Контрольные вопросы
+
+1. Почему SR Policy называется source routing?
+2. Чем End.X SID удобен для задания явного next-hop?
+3. Почему успешный ping через policy нужно дополнять pcap с SRH?
+4. Чем лабораторная эмуляция Candidate Path отличается от production SR Policy?
+5. Что произойдёт со статическим `encap seg6` маршрутом при отказе r2-r3?
+
+## Требования к отчёту
+
+- Таблица всех SID, использованных в policy, с behavior и context.
+- Вывод kernel route с `encap seg6`.
+- pcap или tcpdump-вывод, где виден Routing Header Type 4.
+- Сравнительная таблица IGP shortest path vs SR Policy.
+- Отдельный абзац про ограничения статической реализации.
 
 ## Дополнительно: SR Policy в FRR (pathd)
 

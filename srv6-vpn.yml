@@ -1,0 +1,38 @@
+name: srv6
+
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: frrouting/frr:v8.4.0
+      exec:
+        - "ip link add TENANT_A type vrf table 101 || true"
+        - "ip link set TENANT_A up"
+        - "ip link add tenant-a type dummy || true"
+        - "ip link set tenant-a master TENANT_A"
+        - "ip link set tenant-a up"
+      binds:
+        - configs/srv6/r1/daemons-vpn:/etc/frr/daemons
+        - configs/srv6/r1/frr-vpn.conf:/etc/frr/frr.conf
+    r2:
+      kind: linux
+      image: frrouting/frr:v8.4.0
+      binds:
+        - configs/srv6/r2/daemons-vpn:/etc/frr/daemons
+        - configs/srv6/r2/frr-vpn.conf:/etc/frr/frr.conf
+    r3:
+      kind: linux
+      image: frrouting/frr:v8.4.0
+      exec:
+        - "ip link add TENANT_A type vrf table 101 || true"
+        - "ip link set TENANT_A up"
+        - "ip link add tenant-a type dummy || true"
+        - "ip link set tenant-a master TENANT_A"
+        - "ip link set tenant-a up"
+      binds:
+        - configs/srv6/r3/daemons-vpn:/etc/frr/daemons
+        - configs/srv6/r3/frr-vpn.conf:/etc/frr/frr.conf
+
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]
+    - endpoints: ["r2:eth2", "r3:eth1"]

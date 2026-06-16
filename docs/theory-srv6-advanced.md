@@ -197,9 +197,9 @@ segment-routing
   exit
  exit
 !
-router bgp 65001
+router bgp 65000
  bgp router-id 1.1.1.1
- neighbor 2001:db8:3::3 remote-as 65001
+ neighbor 2001:db8:3::3 remote-as 65000
  !
  address-family ipv6 vpn
   neighbor 2001:db8:3::3 activate
@@ -313,7 +313,7 @@ BGP Update:
   MP_REACH_NLRI:
     AFI: IPv6 (2), SAFI: VPNv6 (128)
     Next-Hop: 2001:db8:1::1  (loopback PE)
-    NLRI: 2001:db8:1::1, RD=65001:100, Prefix=2001:db8:dead::/64
+    NLRI: 2001:db8:1::1, RD=65000:100, Prefix=2001:db8:dead::/64
     Prefix-SID Attribute (type 40):
       SRv6 L3VPN Service sub-TLV:
         SID: 2001:db8:1:0101::  (End.DT6 в VRF tenant-A)
@@ -341,22 +341,23 @@ vrf TENANT_A
  vni 101
 exit-vrf
 !
-interface vrf-tenant-a
- ipv6 address 2001:db8:dead::1/64
+interface tenant-a
+ vrf TENANT_A
+ ipv6 address 2001:db8:dead::1/128
 !
 # BGP
-router bgp 65001
+router bgp 65000
  bgp router-id 1.1.1.1
- neighbor 2001:db8:3::3 remote-as 65003
+ neighbor 2001:db8:2::2 remote-as 65000
  !
  address-family ipv6 vpn
-  neighbor 2001:db8:3::3 activate
+  neighbor 2001:db8:2::2 activate
   segment-routing srv6
    locator LOC1
   exit
  exit-address-family
 !
-router bgp 65001 vrf TENANT_A
+router bgp 65000 vrf TENANT_A
  address-family ipv6 unicast
   redistribute connected
   segment-routing srv6
@@ -429,10 +430,11 @@ router isis CORE
 Обычный `ping6 2001:db8:3::3` проверяет **только IGP-достижимость**, но не проверяет,
 что конкретный SID (например, End.DT4) работает корректно.
 
-### 7.2 SRv6 Ping (RFC 8754, Section 7)
+### 7.2 SRv6 Ping
 
-Отправляет пакет с SRH, где последний SID = `::` (End-of-SID), а предпоследний — это
-SID тестируемого узла. Узел обрабатывает SID, и если поведение End — посылает ICMPv6 Echo Reply.
+Определён в RFC 9256 (§6.9) и draft-ietf-6man-spring-srv6-oam. Отправляет пакет с SRH,
+где последний SID = `::` (End-of-SID), а предпоследний — это SID тестируемого узла.
+Узел обрабатывает SID, и если поведение End — посылает ICMPv6 Echo Reply.
 
 ```bash
 # Ручной SRv6 ping на локальный End SID узла r3

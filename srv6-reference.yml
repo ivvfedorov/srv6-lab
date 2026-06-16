@@ -7,19 +7,19 @@ topology:
       image: frrouting/frr:v8.4.0
       binds:
         - configs/r1/daemons:/etc/frr/daemons
-        - configs/r1/frr.conf:/etc/frr/frr.conf
+        - configs/srv6/r1/frr.conf:/etc/frr/frr.conf
     r2:
       kind: linux
       image: frrouting/frr:v8.4.0
       binds:
         - configs/r2/daemons:/etc/frr/daemons
-        - configs/r2/frr.conf:/etc/frr/frr.conf
+        - configs/srv6/r2/frr.conf:/etc/frr/frr.conf
     r3:
       kind: linux
       image: frrouting/frr:v8.4.0
       binds:
         - configs/r3/daemons:/etc/frr/daemons
-        - configs/r3/frr.conf:/etc/frr/frr.conf
+        - configs/srv6/r3/frr.conf:/etc/frr/frr.conf
 
   links:
     - endpoints: ["r1:eth1", "r2:eth1"]
