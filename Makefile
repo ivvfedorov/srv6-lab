@@ -58,17 +58,17 @@ reload:
 	containerlab exec -t $(TOPOLOGY) --cmd "vtysh -b"
 
 verify:
-	containerlab exec -t $(TOPOLOGY) --cmd "hostname; ip -6 -br addr; vtysh -c 'show isis neighbor'"
+	containerlab exec -t $(TOPOLOGY) --cmd 'sh -c "hostname; ip -6 -br addr; vtysh -c \"show isis neighbor\""'
 
 verify-srv6:
-	containerlab exec -t $(SRV6_TOPOLOGY) --cmd "hostname; vtysh -c 'show isis neighbor'; vtysh -c 'show segment-routing srv6 locator'; vtysh -c 'show segment-routing srv6 sid'; ip -6 route show table local | grep -i seg6local"
+	containerlab exec -t $(SRV6_TOPOLOGY) --cmd 'sh -c "hostname; vtysh -c \"show isis neighbor\"; vtysh -c \"show segment-routing srv6 locator\"; vtysh -c \"show segment-routing srv6 sid\"; ip -6 route show table local | grep -i seg6local"'
 
 verify-vpn:
 	docker exec clab-srv6-r1 ip link show TENANT_A
 	docker exec clab-srv6-r1 ip -br link show tenant-a
 	docker exec clab-srv6-r3 ip link show TENANT_A
 	docker exec clab-srv6-r3 ip -br link show tenant-a
-	containerlab exec -t $(VPN_TOPOLOGY) --cmd "hostname; vtysh -c 'show isis neighbor'; vtysh -c 'show bgp summary'"
+	containerlab exec -t $(VPN_TOPOLOGY) --cmd 'sh -c "hostname; vtysh -c \"show isis neighbor\"; vtysh -c \"show bgp summary\""'
 	docker exec clab-srv6-r1 vtysh -c "show bgp ipv6 vpn"
 	docker exec clab-srv6-r3 vtysh -c "show bgp ipv6 vpn"
 	docker exec clab-srv6-r1 vtysh -c "show ipv6 route vrf TENANT_A"
