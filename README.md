@@ -49,13 +49,18 @@ sudo bash -c "$(curl -sL https://get.containerlab.dev)"
 sudo apt-get install -y git make
 ```
 
+### Клонирование репозитория
+
+```bash
+git clone https://github.com/ivvfedorov/srv6-lab.git
+cd srv6-lab
+```
+
 ### Проверка перед первым запуском
 
 ```bash
 docker version      # Docker должен быть запущен
 containerlab version
-git clone https://github.com/ivvfedorov/srv6-lab.git
-cd srv6-lab
 ```
 
 ## Быстрый старт
