@@ -15,6 +15,46 @@ SRv6, VPP и eBPF. Основная топология: Containerlab + FRR, тр
 4. **Expected output** — ориентир нормального результата.
 5. **Критерий успеха** — что студент должен уметь объяснить после выполнения.
 
+## Минимальные требования
+
+| Компонент | Минимальная версия | Проверка |
+|-----------|--------------------|----------|
+| **ОС** | macOS 12+ (Apple Silicon / Intel), Linux (Ubuntu 20.04+ / Debian 11+) | `uname -s` |
+| **Docker** | 20.10+ с включённым Docker Engine | `docker version` |
+| **Containerlab** | 0.41+ | `containerlab version` |
+| **git** | 2.30+ | `git --version` |
+| **make** | — (опционально, можно без него через `containerlab` напрямую) | `make --version` |
+
+### Установка зависимостей
+
+**macOS (Homebrew):**
+
+```bash
+brew install --cask docker          # Docker Desktop
+brew install containerlab git make
+```
+
+**Ubuntu / Debian:**
+
+```bash
+# Docker: https://docs.docker.com/engine/install/ubuntu/
+sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+# Containerlab: https://containerlab.dev/install/
+sudo bash -c "$(curl -sL https://get.containerlab.dev)"
+
+sudo apt-get install -y git make
+```
+
+### Проверка перед первым запуском
+
+```bash
+docker version      # Docker должен быть запущен
+containerlab version
+git clone https://github.com/ivvfedorov/srv6-lab.git
+cd srv6-lab
+```
+
 ## Быстрый старт
 
 ```bash
@@ -23,7 +63,7 @@ make status
 make verify
 ```
 
-Если `make` недоступен:
+Без `make`:
 
 ```bash
 containerlab deploy -t srv6.yml
