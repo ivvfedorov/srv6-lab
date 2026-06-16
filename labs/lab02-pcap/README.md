@@ -1,11 +1,6 @@
-# Сценарий 2: Захват и разбор пакетов
+# Исследование Data Plane через PCAP
 
-**Неделя 1** | Время: ~2 ч
-
-## Цель
-
-Доказать маршрут пакета через захват — не верить `ping`, а увидеть пакет своими глазами
-на конкретном интерфейсе.
+**lab02** | ~1.5 ч
 
 ## Предусловия
 
@@ -16,141 +11,95 @@ for n in r1 r2 r3; do
 done
 ```
 
-FRR-образ на Alpine — `apk`, не `apt`.
+## Задача 1. L3-адреса на transit-узле
 
-## Шаги
+Утверждение: маршрутизатор при hop-by-hop forwarding не меняет IPv6 Source и Destination.
+Докажите или опровергните захватом.
 
-### 1. Негативный тест: eth0 пустой, а ping идёт
-
-Терминал 1 — захват на mgmt-интерфейсе r1:
-
-```bash
-docker exec clab-srv6-r1 tcpdump -ni eth0 icmp6
-```
-
-Терминал 2 — ping по data-сети:
+**Захват** — tcpdump на выходном интерфейсе r2, пинг от r1 до loopback r3:
 
 ```bash
-docker exec clab-srv6-r1 ping6 -c 3 2001:db8:12::2
-```
+# Терминал 1
+docker exec clab-srv6-r2 tcpdump -ni eth2 icmp6
 
-**Результат**: ping успешен, tcpdump на eth0 — тишина.
-
-Вывод: пакет пошёл через data-интерфейс (`eth1`), а не через management (`eth0`).
-Это главная ловушка — `ping` работает, а где именно — показывает только tcpdump.
-
-### 2. Захват на правильном интерфейсе
-
-Терминал 1:
-
-```bash
-docker exec clab-srv6-r1 tcpdump -ni eth1 icmp6
-```
-
-Терминал 2:
-
-```bash
-docker exec clab-srv6-r1 ping6 -c 3 2001:db8:12::2
-```
-
-Ожидаемый вывод tcpdump:
-
-```
-10:00:00.100000 IP6 2001:db8:12::1 > 2001:db8:12::2: ICMP6, echo request, seq 1, length 64
-10:00:00.100100 IP6 2001:db8:12::2 > 2001:db8:12::1: ICMP6, echo reply, seq 1, length 64
-```
-
-Запишите в тетрадь: source IP → destination IP, кто ответил, задержка между запросом
-и ответом (из timestamp).
-
-Флаги tcpdump: `-n` (без DNS), `-i eth1` (конкретный интерфейс), `icmp6` (фильтр BPF,
-отсекает IS-IS-шум).
-
-### 3. Wireshark (опционально)
-
-Если есть графический клиент — сохраните pcap и откройте локально:
-
-```bash
-docker exec clab-srv6-r1 tcpdump -ni eth1 -w /tmp/lab02.pcap icmp6 &
-docker exec clab-srv6-r1 ping6 -c 3 2001:db8:12::2
-docker cp clab-srv6-r1:/tmp/lab02.pcap ~/lab02.pcap
-```
-
-В Wireshark разверните один Echo Request и заполните:
-
-| Поле       | Значение          | Почему          |
-|------------|-------------------|-----------------|
-| Src MAC    | MAC r1 на eth1    | Отправитель кадра |
-| Dst MAC    | MAC r2 на eth1    | Next-hop на этом L2-сегменте |
-| EtherType  | `0x86dd`          | IPv6            |
-| Src IPv6   | `2001:db8:12::1`  | Неизменен сквозь все хопы |
-| Dst IPv6   | `2001:db8:12::2`  | Неизменен сквозь все хопы |
-| Hop Limit  | 64                | Уменьшится на r2 |
-| Next Hdr   | 58                | ICMPv6          |
-| ICMP Type  | 128               | Echo Request    |
-| ICMP Code  | 0                 | Для Echo Request всегда 0 |
-
-### 4. Transit-захват: главное доказательство
-
-Захват на r2, на выходном интерфейсе в сторону r3:
-
-```bash
-docker exec clab-srv6-r2 tcpdump -ni eth2 icmp6 &
+# Терминал 2
 docker exec clab-srv6-r1 ping6 -c 3 2001:db8:23::3
 ```
 
-Ожидаемый вывод:
+Ожидаемый результат:
 
 ```
-IP6 2001:db8:12::1 > 2001:db8:23::3: ICMP6, echo request, seq 1, length 64
-IP6 2001:db8:23::3 > 2001:db8:12::1: ICMP6, echo reply, seq 1, length 64
+IP6 2001:db8:12::1 > 2001:db8:23::3: ICMP6, echo request …
+IP6 2001:db8:23::3 > 2001:db8:12::1: ICMP6, echo reply …
 ```
 
-**Ключевое наблюдение**: source IPv6 — `2001:db8:12::1` (r1), **НЕ** `2001:db8:23::2` (r2).
-IPv6-адреса отправителя и получателя не изменились при проходе через r2. Это hop-by-hop
-forwarding: маршрутизатор меняет только MAC-адреса (L2), IPv6-заголовок (L3) остаётся
-сквозным. Hop Limit при этом уменьшается на 1.
+**Вывод**: Source = `2001:db8:12::1` (адрес r1, не r2). Destination = `2001:db8:23::3` (loopback r3).
+Маршрутизатор перезаписал MAC, но не тронул L3 — транзит прозрачен для IP.
 
-Сравните с шагом 2: на линке r1↔r2 destination был `2001:db8:12::2`, а здесь —
-`2001:db8:23::3`. Пакет один и тот же (source не меняется), а линки разные.
+## Задача 2. L2-заголовки на разных интерфейсах r2
 
-### 5. IS-IS-трафик: контрольная плоскость на том же проводе
+Возьмите дампы на обоих data-интерфейсах r2 **одновременно**, пока идёт ping r1→r3.
 
-Уберите фильтр `icmp6` и посмотрите, что ещё идёт по data-интерфейсу:
+Сохраните в pcap:
 
 ```bash
-docker exec clab-srv6-r1 tcpdump -ni eth1 -c 20
+docker exec clab-srv6-r2 tcpdump -ni eth1 -w /tmp/eth1.pcap icmp6 &
+docker exec clab-srv6-r2 tcpdump -ni eth2 -w /tmp/eth2.pcap icmp6 &
+docker exec clab-srv6-r1 ping6 -c 3 2001:db8:23::3
+wait
+docker cp clab-srv6-r2:/tmp/eth1.pcap ~/eth1.pcap
+docker cp clab-srv6-r2:/tmp/eth2.pcap ~/eth2.pcap
 ```
 
-Среди прочего увидите:
+Сравните Ethernet-заголовки одного и того же ICMPv6 Echo Request на входе (eth1) и выходе (eth2) r2.
 
+| Поле      | eth1 (вход r2)  | eth2 (выход r2) |
+|-----------|-----------------|------------------|
+| Src MAC   | MAC r1          | MAC r2           |
+| Dst MAC   | MAC r2          | MAC r3           |
+| Src IPv6  | 2001:db8:12::1  | 2001:db8:12::1   |
+| Dst IPv6  | 2001:db8:23::3  | 2001:db8:23::3   |
+
+MAC-адреса разные, потому что каждый L2-сегмент (r1–r2 и r2–r3) — независимый Ethernet-домен.
+Маршрутизатор обязан перезаписать Src MAC на свой и Dst MAC на next-hop.
+
+## Задача 3. Hop Limit на транзите
+
+Возьмите захват на r2 eth1 (вход) и eth2 (выход) для одного и того же Echo Request.
+Сравните значение **Hop Limit** в IPv6-заголовке.
+
+```bash
+# Быстрый захват без pcap — сравнить прямо в терминале
+docker exec clab-srv6-r2 tcpdump -ni eth1 -c 1 -v icmp6 &
+docker exec clab-srv6-r2 tcpdump -ni eth2 -c 1 -v icmp6 &
+docker exec clab-srv6-r1 ping6 -c 1 2001:db8:23::3
 ```
-IP6 fe80::... > ff02::5: OSI, IS-IS, length ...
-IP6 fe80::... > ff02::5: OSI, IS-IS, length ...
-```
 
-Это IS-IS Hello-пакеты. Они ходят по тем же интерфейсам `eth1`/`eth2`, что и данные,
-но с link-local-адресов (`fe80::`) на multicast `ff02::5` (all IS-IS routers).
+Флаг `-v` включает подробный вывод. Найдите строку `hlim 64` на eth1 и `hlim 63` на eth2.
 
-Вывод: data-plane и control-plane делят один физический линк. tcpdump видит и то и другое,
-поэтому для ICMPv6-экспериментов нужен фильтр.
+Если Hop Limit стал 0 — в сети петля. Если уменьшился на >1 — transit-узел делает что-то
+нестандартное. Штатное поведение: −1 за каждый hop.
 
-## Критерии валидации
+## Справка: фильтры Wireshark
 
-- [ ] Шаг 1: объяснить, почему tcpdump на eth0 молчит при работающем ping
-- [ ] Шаг 2: назвать source/destination IPv6, задержку, направление (request/reply)
-- [ ] Шаг 4: показать, что source IPv6 не изменился при проходе r2
-- [ ] Шаг 5: найти IS-IS Hello в выводе tcpdump без фильтра
+| Фильтр                   | Что показывает                             |
+|--------------------------|--------------------------------------------|
+| `icmpv6`                 | Только ICMPv6 (Echo, ND, Error)            |
+| `icmpv6.type == 128`     | Echo Request                               |
+| `icmpv6.type == 129`     | Echo Reply                                 |
+| `ipv6.src == 2001:db8:12::1` | Пакеты от r1                           |
+| `eth.src == aa:bb:cc:…`  | Кадры с конкретным MAC-отправителем        |
+| `eth.dst == aa:bb:cc:…`  | Кадры с конкретным MAC-получателем         |
+| `isis`                   | IS-IS PDU (Hello, LSP, SNP)                |
 
-## Контрольные вопросы
+## Инженерная памятка: что означает каждый симптом в дампе
 
-1. Почему tcpdump на `eth0` не видит ICMPv6, хотя ping успешен?
-2. MAC-адреса меняются на каждом линке, а IPv6 destination — нет. Почему?
-3. Что станет с Hop Limit после прохождения r2?
-4. Какой multicast-адрес используют IS-IS Hello и почему он не требует маршрутизации?
-
-## Артефакты диагностики
-
-- Вывод tcpdump из шага 2 (Echo Request + Echo Reply) с комментариями к полям.
-- Вывод tcpdump из шага 4 (transit) с объяснением, почему source не изменился.
-- Одна строка IS-IS Hello из шага 5 с пометкой link-local адресов.
+| Симптом                                  | Диагноз                             |
+|------------------------------------------|-------------------------------------|
+| Dst MAC не совпадает с ожидаемым next-hop | L2-проблема: ARP/ND не отработал, не тот интерфейс |
+| Hop Limit = 0 в пришедшем пакете         | Петля маршрутизации                 |
+| Destination IP не соответствует задуманному | Ошибка в RIB/FIB или FIB не синхронизирован с RIB |
+| Пакет есть на eth1, нет на eth2 r2      | FIB r2 не содержит маршрута к destination — пакет дропнут |
+| Пакет есть на data-интерфейсе, нет в tcpdump на eth0 | Норма: mgmt-сеть изолирована от data |
+| IS-IS Hello есть, icmp6 нет              | Control plane жив, data plane сломан (например, ip6tables) |
+| Только Echo Request, нет Reply           | Обратный маршрут отсутствует или фильтр на обратном пути |
