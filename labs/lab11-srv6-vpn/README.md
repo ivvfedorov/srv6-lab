@@ -24,53 +24,56 @@
 
 ## Теория
 
-L3VPN разделяет маршруты разных клиентов через VRF. В MPLS VPN сервисный контекст обычно
-передаётся VPN label, а в SRv6 эту роль выполняет service SID: End.DT4 для IPv4 VRF и End.DT6
-для IPv6 VRF. Когда пакет приходит на PE с Destination Address, равным End.DT6 SID, узел
-деинкапсулирует внешний заголовок и делает lookup внутреннего IPv6-пакета в нужной VRF.
+Два офиса клиента — Москва и Питер. Нужно, чтобы видели друг друга, но трафик
+Чужого Банка не должен смешиваться с трафиком Нашего Банка на одном и том же PE.
+В MPLS это решается двумя метками (транспортная + VPN), в SRv6 — двумя типами SID:
+транспортный (End/End.X) и сервисный (End.DT6/End.DT4).
 
-BGP VPNv6 распространяет не только префикс клиента, но и next-hop PE вместе с SRv6 service SID.
-Transport reachability до PE обеспечивает IS-IS SRv6 locator, а сервисную доставку в VRF
-обеспечивает End.DT SID. Поэтому проверка VPN состоит из трёх частей: BGP-сессия и VPNv6 NLRI,
-SID в FRR/kernel, end-to-end ping из VRF.
+Метафора многоквартирного дома:
+- **PE** — сам дом. Один физический узел, много виртуальных квартир внутри.
+- **VRF** — отдельная квартира. У каждой своя таблица маршрутов (свои жильцы).
+- **End.DT6 SID** — ключ от квартиры. Когда пакет приходит с DA = этот SID,
+  PE снимает внешний IPv6-заголовок и делает lookup внутреннего пакета
+  в таблице маршрутов конкретной VRF.
+- **BGP VPNv6** — почта России. Разносит извещения (префиксы + SID) по адресам (PE).
 
-Подробнее: [расширенная теория, раздел 5](../../docs/theory-srv6-advanced.md#5-bgp-srv6-l3vpn).
-
-Минимальная модель L3VPN:
+Главная точка отказа: BGP-сессия поднята, но VPN-маршруты не приходят. Причина —
+`segment-routing srv6 / locator` не добавлен в address-family ipv6 vpn. BGP
+анонсирует обычное VPNv6 без SRv6 SID, и удалённый PE не знает, в какую VRF
+деинкапсулировать пакет.
 
 ```text
-Customer route in VRF
+Маршрут клиента в VRF
         |
         v
 BGP VPNv6 NLRI + RD/RT + SRv6 service SID
         |
         v
-Remote PE installs VPN route
+Удалённый PE устанавливает VPN-маршрут c SID
         |
         v
-Traffic is encapsulated over SRv6 transport
+Трафик инкапсулируется поверх SRv6-транспорта
         |
         v
-End.DT6/End.DT4 decapsulates into target VRF
+End.DT6/End.DT4 деинкапсулирует в целевую VRF
 ```
 
-Термины:
+Подробнее: [расширенная теория, раздел 5](../../docs/theory-srv6-advanced.md#5-bgp-srv6-l3vpn).
 
 | Термин | Значение |
 |--------|----------|
 | PE | Provider Edge, узел с VRF клиента |
 | P | Provider core, транспортный узел без клиентской VRF |
 | RR | Route Reflector, отражает BGP-маршруты между PE |
-| VRF | Отдельная таблица маршрутизации tenant'а |
+| VRF | Отдельная таблица маршрутизации tenant’а |
 | RD | Route Distinguisher, делает VPN-префикс уникальным |
 | RT | Route Target, управляет import/export маршрутов |
 | End.DT6 SID | SRv6 service SID для IPv6 lookup в VRF |
 
-В этой лаборатории конфиг намеренно упрощён: явные RD/RT могут не присутствовать в виде
-отдельных строк CLI. Для академического понимания всё равно нужно знать их роль, потому что в
-production L3VPN именно RD/RT делают VPN-префиксы уникальными и управляют импортом/экспортом
-маршрутов между VRF.
-
+В этой лаборатории конфиг намеренно упрощён: явные RD/RT могут не присутствовать
+в виде отдельных строк CLI. Для академического понимания всё равно нужно знать
+их роль, потому что в production L3VPN именно RD/RT делают VPN-префиксы
+уникальными и управляют импортом/экспортом маршрутов между VRF.
 ## Архитектура
 
 ```
@@ -411,3 +414,4 @@ docker exec clab-srv6-r1 vtysh -c "show bgp summary"
 - [RFC 8986 — SRv6 Network Programming](https://datatracker.ietf.org/doc/html/rfc8986)
 - [draft-ietf-bess-srv6-services — BGP SRv6 Services](https://datatracker.ietf.org/doc/draft-ietf-bess-srv6-services/)
 - [Конфиги VPN](../../configs/srv6/)
+

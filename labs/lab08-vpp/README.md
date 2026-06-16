@@ -19,22 +19,30 @@ Linux tooling.
 Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
 разделы 2 и 11.
 
-## Теория (кратко)
+## Теория
+
+Linux-роутер на ядре обрабатывает ~1 Mpps. Ваш оператор требует 10 Mpps. Как это
+возможно без замены железа? Ответ — VPP + DPDK: перенос обработки пакетов из
+interrupt-driven kernel в userspace, где пакеты обрабатываются батчами на голом
+железе (polling mode).
+
+Сравнение на пальцах:
+- **Kernel** — официант в ресторане: бегает от столика к столику (interrupt),
+  обслуживает по одному посетителю за раз. Удобно, гибко, но медленно.
+- **VPP + DPDK** — конвейер на заводе: пакеты идут непрерывным потоком, обработка
+  батчами, без переключений контекста. Быстро, но без стандартных инструментов.
+
+Главная ловушка: привычные `tcpdump`, `iptables`, `ip route` не работают на VPP
+fast path. Вы не увидите пакет через `tcpdump`, потому что он даже не заходит
+в kernel networking stack. Диагностика требует новых инструментов: `vppctl`.
+Без этого знания VPP выглядит как “чёрный ящик, который непонятно как работает”.
 
 | | Kernel stack | VPP + DPDK |
 |---|--------------|------------|
-| Обработка | interrupt-driven | polling, batch |
-| Throughput | умеренный | высокий (Mpps) |
-| iptables/nft | да | нет на fast path |
-| Типичное use | general purpose | NFV, telco, PE router |
-
-Linux kernel networking удобен для универсального хоста: маршруты видны через `ip route`,
-правила через nftables/iptables, процессы работают с обычными сокетами. VPP строит отдельный
-packet-processing graph в userspace и обрабатывает пакеты батчами. Это даёт высокую скорость,
-но требует другой модели диагностики: `vppctl show interface`, `show hardware`, `show ip fib`
-вместо привычных kernel-команд.
-
-Ключевое сравнение:
+|| Обработка | interrupt-driven | polling, batch |
+|| Throughput | умеренный | высокий (Mpps) |
+|| iptables/nft | да | нет на fast path |
+|| Типичное use | general purpose | NFV, telco, PE router |
 
 | Вопрос | Linux kernel dataplane | VPP dataplane |
 |--------|------------------------|---------------|
@@ -45,9 +53,8 @@ packet-processing graph в userspace и обрабатывает пакеты б
 | Главный плюс | Универсальность и стандартные инструменты | Производительность |
 | Главный минус | Ограничение throughput | Отдельная операционная модель |
 
-В этой ЛР не требуется глубоко настраивать DPDK. Цель — увидеть, что dataplane может быть не
-Linux kernel, и что это меняет способ диагностики.
-
+В этой ЛР не требуется глубоко настраивать DPDK. Цель — увидеть, что dataplane
+может быть не Linux kernel, и что это меняет способ диагностики.
 ## Развёртывание отдельной лабы
 
 ```bash
@@ -146,3 +153,4 @@ host-eth1                         1      up          9000/0/0/0
 
 - Hugepages: `grep Huge /proc/meminfo` на хосте
 - [DPDK programmer's guide](https://doc.dpdk.org/guides/prog_guide/)
+

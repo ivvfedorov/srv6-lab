@@ -21,28 +21,33 @@
 
 ## Теория
 
-SRv6 использует IPv6-адрес как Segment Identifier (SID). Locator — это префикс, который
-доставляет пакет к нужному узлу, а function внутри SID определяет действие на этом узле:
-например, End/uN для обработки узлового SID или End.X/uA для перехода на конкретную adjacency.
+IS-IS сходится, ping идёт — зачем тогда SRv6? Проблема в том, что IGP shortest-path
+не даёт управлять трафиком: пакеты всегда идут по кратчайшему пути, и свернуть их
+на альтернативный линк нельзя без сложных трюков с метриками. SRv6 решает это через
+явный список инструкций в заголовке пакета.
 
-В этой лаборатории IS-IS анонсирует locator'ы, FRR создаёт SID, а `zebra` устанавливает
-соответствующие записи в kernel. Успешный ping сам по себе показывает только reachability;
-для доказательства SRv6 нужно дополнительно увидеть locator, SID и, где применимо, записи
-`seg6`/`seg6local` в Linux.
+Ключевая метафора:
+- **Locator** — почтовый индекс города. Доставляет пакет к нужному узлу (r1, r2, r3).
+  В нашей лабе это `/64` префикс: `2001:db8:1::/64` для r1.
+- **Function** — инструкция курьеру внутри города. End (uN) — “принял, обработай”.
+  End.X (uA) — “не заходи внутрь, сразу выйди через конкретную дверь”.
+- **SID** = Locator + Function. `2001:db8:1:e000::` — это locator r1 + функция
+  `e000` (End.X на eth1).
 
-Минимальная модель SRv6 в этой ЛР:
+Что ломается без SRv6? Ничего — IGP работает. Но вы не можете сказать пакету
+“иди через r2, потом через r4, потом к r3”. Только shortest path.
+
+Что ломается при `seg6_enabled=0` в kernel? Самое коварное: locator в FRR показывает
+`Up`, IS-IS соседи живы, SID видны — но пакет с SID в Destination Address дропается
+ядром. Control plane здоров, data plane парализован.
 
 ```text
-r1 owns locator 2001:db8:1::/64
-r2 owns locator 2001:db8:2::/64
-r3 owns locator 2001:db8:3::/64
-
-IS-IS advertises locator reachability
-FRR allocates local SID behavior
-zebra installs routes/SID handling into Linux
+r1 locator 2001:db8:1::/64    r2 locator 2001:db8:2::/64
+         \                      /
+    IS-IS анонсирует locator’ы → FRR создаёт SID → zebra ставит seg6local в kernel
+                              |
+                   r3 locator 2001:db8:3::/64
 ```
-
-Нужно различать два результата:
 
 | Результат | Что доказывает | Команда |
 |-----------|----------------|---------|
@@ -50,7 +55,6 @@ zebra installs routes/SID handling into Linux
 | Locator `Up` | FRR принял SRv6 locator | `show segment-routing srv6 locator` |
 | SID отображается | FRR создал SID behavior | `show segment-routing srv6 sid` |
 | `seg6`/`seg6local` виден | Kernel получил SRv6 dataplane state | `ip -6 route show table all` |
-
 ## Предусловия
 
 Базовая лаба с IPv6 + IS-IS без SRv6:
@@ -176,3 +180,4 @@ $ ping6 -c 3 2001:db8:3::3
 - Таблица SID на каждом узле: SID, behavior, context.
 - Сравнение базового режима `make deploy` и SRv6-режима `make srv6`.
 - Короткое объяснение, почему SRH не обязан появляться при обычном ping.
+
