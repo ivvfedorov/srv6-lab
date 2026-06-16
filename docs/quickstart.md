@@ -47,12 +47,12 @@ make deploy
 # Статус
 make status
 
-# Удалить лабу (контейнеры и veth)
+# Удалить стенд (контейнеры и veth)
 make clean
 ```
 
 После `deploy` FRR читает базовые конфиги из `configs/r*/frr.conf` (bind-mount). Это режим
-для ЛР1-ЛР4: IPv6 forwarding и IS-IS есть, SRv6 ещё не включён.
+для сценариев 1-4: IPv6 forwarding и IS-IS есть, SRv6 ещё не включён.
 FRR-образ закреплён в topology-файлах как `frrouting/frr:v8.4.0`, чтобы лабораторные не зависели
 от изменений Docker-тега `latest`.
 
@@ -138,8 +138,8 @@ docker cp clab-srv6-r2:/tmp/lab.pcap ~/lab.pcap
 
 ## SRv6 reference config
 
-Эталонные конфиги SRv6 для ЛР5-ЛР7 и ЛР10: `configs/srv6/r*/frr.conf`.
-Для ЛР11 используются VPN-конфиги `configs/srv6/r*/frr-vpn.conf`.
+Эталонные конфиги SRv6 для сценариев 5-7 и Сценарий 10: `configs/srv6/r*/frr.conf`.
+Для Сценарий 11 используются VPN-конфиги `configs/srv6/r*/frr-vpn.conf`.
 
 Переключить стенд в SRv6-режим:
 
@@ -153,7 +153,7 @@ make srv6
 make redeploy
 ```
 
-## Программа обучения
+## Программа
 
 | Блок | Тема | Лабораторные |
 |------|------|--------------|
@@ -163,7 +163,7 @@ make redeploy
 | 4 | VPP, DPDK, eBPF | [lab08](../labs/lab08-vpp/), [lab09](../labs/lab09-ebpf/) |
 | 5 | Advanced SRv6 | [lab10](../labs/lab10-srv6-policy/), [lab11](../labs/lab11-srv6-vpn/) |
 
-Перед ЛР1-ЛР4 прочитайте [theory-foundations.md](theory-foundations.md) до раздела 6.
-Перед ЛР5-ЛР11 дополнительно прочитайте разделы 7-10.
+Перед Сценарии 1-4 прочитайте [theory-foundations.md](theory-foundations.md) до раздела 6.
+Перед Сценарии 5-11 дополнительно прочитайте разделы 7-10.
 
-Подробнее: [cheatsheet.md](cheatsheet.md), [lab-format.md](lab-format.md)
+Подробнее: [cheatsheet.md](cheatsheet.md), [methodology.md](methodology.md)

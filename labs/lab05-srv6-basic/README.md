@@ -1,4 +1,4 @@
-# ЛР5: Базовая SRv6 connectivity
+# Сценарий 5: Базовая SRv6 connectivity
 
 **Неделя 3** | Время: ~3 ч
 
@@ -6,12 +6,12 @@
 
 Включить SRv6 locators через IS-IS на r1—r2—r3, увидеть SID'ы в FRR и kernel.
 
-После выполнения студент должен понимать, чем обычная IPv6-связность отличается от SRv6-
+После выполнения необходимо понимать, чем обычная IPv6-связность отличается от SRv6-
 готовой сети, и почему наличие locator/SID нужно проверять отдельно от ping.
 
 ## Что нужно знать заранее
 
-- Из ЛР1-ЛР4: интерфейсы Linux, IPv6-маршруты, FRR RIB, kernel FIB, IS-IS соседства.
+- Из Сценарии 1-4: интерфейсы Linux, IPv6-маршруты, FRR RIB, kernel FIB, IS-IS соседства.
 - SID в SRv6 — это IPv6-адрес, который кодирует сетевое действие.
 - Locator — routable-префикс, по которому сеть доставляет пакет к узлу-владельцу SID.
 - SRv6 control plane в этой лаборатории строится через IS-IS.
@@ -28,7 +28,7 @@ IS-IS сходится, ping идёт — зачем тогда SRv6? Пробл
 
 SRv6 SID = Locator + Function.
 - **Locator** — routable-префикс, анонсируемый через IGP. Аналог Node-SID в SR-MPLS:
-  доставляет пакет к узлу-владельцу SID. В нашей лабе это `/64` префикс:
+  доставляет пакет к узлу-владельцу SID. В нашем стенде это `/64` префикс:
   `2001:db8:1::/64` для r1.
 - **Function** — поведение, которое узел выполняет при получении пакета с данным
   Destination Address. End (uN) — аналог PHP (Penultimate Hop Popping) с обработкой
@@ -73,7 +73,7 @@ make verify
 docker exec clab-srv6-r1 vtysh -c "show segment-routing srv6 locator"
 ```
 
-## Задания
+## Шаги проверки
 
 ### 1. Изучите эталонный конфиг
 
@@ -136,8 +136,8 @@ docker exec clab-srv6-r2 tcpdump -ni eth1 -c 20 -vv ip6 2>&1 | head -30
 
 Ищите Routing Header Type 4 при policy-based encapsulation.
 
-В этой базовой ЛР SRH может не появиться при обычном ping, потому что обычная reachability до
-loopback r3 идёт по IGP shortest path. SRH ожидается в ЛР10, когда headend явно добавляет
+В этом базовом сценарии SRH может не появиться при обычном ping, потому что обычная reachability до
+loopback r3 идёт по IGP shortest path. SRH ожидается в Сценарий 10, когда headend явно добавляет
 segment list.
 
 ## Expected output
@@ -161,7 +161,7 @@ $ ping6 -c 3 2001:db8:3::3
 3 packets transmitted, 3 received, 0% packet loss
 ```
 
-## Критерий успеха
+## Критерии валидации
 
 - [ ] Locator `Up` на всех трёх узлах
 - [ ] IS-IS neighbors `Up`
@@ -177,7 +177,7 @@ $ ping6 -c 3 2001:db8:3::3
 3. Почему IS-IS должен анонсировать locator-префиксы?
 4. Где проходит граница между SRv6 control plane и kernel dataplane?
 
-## Требования к отчёту
+## Артефакты диагностики
 
 - Таблица locator'ов r1/r2/r3 со статусом `Up`.
 - Таблица SID на каждом узле: SID, behavior, context.

@@ -1,6 +1,6 @@
 # SRv6 Reference Configuration
 
-Эталонные конфиги для ЛР5–ЛР11. Базовые конфиги без SRv6 находятся в `configs/r*/frr.conf`.
+Эталонные конфиги для Сценарий 5–Сценарий 11. Базовые конфиги без SRv6 находятся в `configs/r*/frr.conf`.
 SRv6-режим разворачивается через `srv6-reference.yml`, VPN-режим — через `srv6-vpn.yml`.
 
 ## Locator plan
@@ -57,7 +57,7 @@ ip -6 route add 2001:db8:3::3/128 encap seg6 mode encap \
 
 ---
 
-# Advanced Configuration Reference (ЛР10–ЛР11)
+# Advanced Configuration Reference (Сценарий 10–Сценарий 11)
 
 ## Advanced Locator Plan
 
@@ -86,7 +86,7 @@ ip -6 route add 2001:db8:3::3/128 encap seg6 mode encap \
 
 Узнать реальные SID после развёртывания: `vtysh -c "show segment-routing srv6 sid" | grep uDT`.
 
-## SR Policy SID Allocation (ЛР10)
+## SR Policy SID Allocation (Сценарий 10)
 
 | Policy | Headend | Color | Endpoint | BSID | Segment List |
 |--------|---------|-------|----------|------|-------------|
@@ -102,7 +102,7 @@ Locator (B=64 бит)    | Function (N бит)         | Argument (опц.)
 |<--- /64 locator -->| |<-- до /128 -->|
 ```
 
-## План VRF-интерфейсов (ЛР11)
+## План VRF-интерфейсов (Сценарий 11)
 
 | Узел | VRF | Интерфейс | IPv4 | IPv6 |
 |------|-----|-----------|------|------|
@@ -110,7 +110,7 @@ Locator (B=64 бит)    | Function (N бит)         | Argument (опц.)
 | r3 | TENANT_A | tenant-a (dummy) | `192.168.3.1/32` | `2001:db8:beef::1/128` |
 
 В текущем стенде CE эмулируется dummy-интерфейсом `tenant-a` внутри Linux VRF `TENANT_A`.
-Отдельные CE-контейнеры и линки `eth3` намеренно не используются, чтобы ЛР11 фокусировалась на
+Отдельные CE-контейнеры и линки `eth3` намеренно не используются, чтобы Сценарий 11 фокусировалась на
 BGP VPNv6 и End.DT SID.
 
 ## BGP Peering для L3VPN
@@ -154,5 +154,5 @@ ip -6 route show table local | grep seg6local
 
 - Расширенная теория: [docs/theory-srv6-advanced.md](../../docs/theory-srv6-advanced.md)
 - Cheatsheet (advanced): [docs/cheatsheet.md](../../docs/cheatsheet.md)
-- ЛР10 (SR Policy): [labs/lab10-srv6-policy/README.md](../../labs/lab10-srv6-policy/README.md)
-- ЛР11 (BGP L3VPN): [labs/lab11-srv6-vpn/README.md](../../labs/lab11-srv6-vpn/README.md)
+- Сценарий 10 (SR Policy): [labs/lab10-srv6-policy/README.md](../../labs/lab10-srv6-policy/README.md)
+- Сценарий 11 (BGP L3VPN): [labs/lab11-srv6-vpn/README.md](../../labs/lab11-srv6-vpn/README.md)

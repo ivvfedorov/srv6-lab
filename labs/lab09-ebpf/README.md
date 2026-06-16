@@ -6,7 +6,7 @@
 
 Наблюдать kernel networking через eBPF/bpftrace без написания LKM.
 
-После выполнения студент должен понимать eBPF как инструмент наблюдения за kernel path, а не
+После выполнения необходимо понимать eBPF как инструмент наблюдения за kernel path, а не
 как “магическую” замену tcpdump, strace или FRR-команд.
 
 ## Что нужно знать заранее
@@ -48,7 +48,7 @@
 | `strace` | Syscall’ы процесса | Обработку пакетов после syscall |
 | `bpftrace` | Kernel functions/tracepoints | Полный pcap без отдельной логики |
 
-В этой ЛР eBPF используется только для observability: мы не меняем пакеты,
+В этом сценарии eBPF используется только для observability: мы не меняем пакеты,
 а считаем события сетевого стека. Для SRv6 это полезно как следующий уровень
 после FRR, `ip -6 route` и pcap: можно увидеть, что пакет действительно проходит
 через `seg6_input` и `seg6_local_input`.
@@ -60,7 +60,7 @@
 which bpftrace || sudo apt-get install -y bpftrace
 ```
 
-## Задания
+## Шаги проверки
 
 ### 1. kprobe: netif_receive_skb
 
@@ -111,7 +111,7 @@ sudo bpftrace -e 'tracepoint:syscalls:sys_enter_write /comm == "vtysh"/ { printf
 @ping6]: 10
 ```
 
-## Критерий успеха
+## Критерии валидации
 
 - [ ] Запустить bpftrace без ошибок
 - [ ] Объяснить разницу kprobe и tracepoint
@@ -124,7 +124,7 @@ sudo bpftrace -e 'tracepoint:syscalls:sys_enter_write /comm == "vtysh"/ { printf
 3. Почему eBPF-программы проходят verifier перед запуском?
 4. Что можно доказать счётчиком `netif_receive_skb`, а что нельзя?
 
-## Требования к отчёту
+## Артефакты диагностики
 
 - Команда bpftrace и вывод счётчиков после генерации ping.
 - Краткое сравнение kprobe и tracepoint.

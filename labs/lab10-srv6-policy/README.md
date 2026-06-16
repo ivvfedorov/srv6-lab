@@ -1,4 +1,4 @@
-# ЛР10: SR Policy — явный путь, Candidate Path, BSID
+# Сценарий 10: SR Policy — явный путь, Candidate Path, BSID
 
 **Неделя 3+ (advanced)** | Время: ~3 ч
 
@@ -7,14 +7,14 @@
 Понять и сконструировать SR Policy вручную: явный segment list через ядро Linux,
 изучить концепцию Candidate Path и Binding SID, сравнить явный путь с IGP shortest-path.
 
-После выполнения студент должен уметь объяснить, кто выбирает путь в IGP, кто выбирает путь
+После выполнения необходимо уметь объяснить, кто выбирает путь в IGP, кто выбирает путь
 в SR Policy, и почему статический kernel-encap не является полноценной динамической TE-системой.
 
 ## Что нужно знать заранее
 
-- Из ЛР5: locator и SID должны быть доступны через IS-IS.
-- Из ЛР6: End/uN и End.X/uA отличаются по смыслу и context.
-- Из ЛР7: SRH нужно подтверждать packet capture, а не только успешным ping.
+- Из Сценарий 5: locator и SID должны быть доступны через IS-IS.
+- Из Сценарий 6: End/uN и End.X/uA отличаются по смыслу и context.
+- Из Сценарий 7: SRH нужно подтверждать packet capture, а не только успешным ping.
 - `ip -6 route ... encap seg6` создаёт статическую dataplane-политику в Linux kernel.
 
 Рекомендуемое чтение: [../../docs/theory-foundations.md](../../docs/theory-foundations.md),
@@ -47,14 +47,14 @@ SR Policy реализует парадигму Source Routing: headend-марш
 внешний IPv6-заголовок и SRH со списком SID. Поэтому доказательство Policy —
 это не только успешный ping, но и захват Routing Header Type 4 в pcap.
 
-Предупреждение: в этой ЛР Policy создаётся статически через kernel encap.
+Предупреждение: в этом сценарии Policy создаётся статически через kernel encap.
 Если линк упадёт, трафик уйдёт в чёрную дыру — нет liveness detection и
 автоматического переключения на резервный Candidate Path. В production за это
 отвечает PCEP или BGP SR-TE.
 
 Подробнее: [расширенная теория, раздел 3](../../docs/theory-srv6-advanced.md#3-sr-policy-основа-source-routing).
 
-| Термин | Академическое значение | В этой ЛР |
+| Термин | Академическое значение | В этом сценарии |
 |--------|------------------------|-----------|
 | Headend | Узел, который применяет policy и инкапсулирует пакет | r1 |
 | Endpoint | Конечная точка policy | loopback r3 `2001:db8:3::3` |
@@ -64,7 +64,7 @@ SR Policy реализует парадигму Source Routing: headend-марш
 
 Ограничение лабораторной модели: Linux static seg6 encap показывает механику SRH,
 но не реализует полноценный SR Policy control plane с preference, liveness
-detection и автоматическим переключением. Это важно указать в отчёте.
+detection и автоматическим переключением. Это важно указать в артефактах.
 
 ## Предусловия
 
@@ -79,7 +79,7 @@ docker exec clab-srv6-r1 vtysh -c "show segment-routing srv6 sid"
 docker exec clab-srv6-r1 vtysh -c "show isis neighbor"
 ```
 
-## Задания
+## Шаги проверки
 
 ### 1. Shortest-path vs Explicit-path: зафиксируйте разницу
 
@@ -284,7 +284,7 @@ $ docker exec clab-srv6-r1 ip -6 route show 2001:db8:3::3
         nexthop encap seg6 mode encap segs 1 [ 2001:db8:3:: ] dev eth1 weight 1
 ```
 
-## Критерий успеха
+## Критерии валидации
 
 - [ ] Таблица SID составлена, все uN и uA идентифицированы
 - [ ] Manual kernel encap создан, ping через Policy успешен
@@ -303,7 +303,7 @@ $ docker exec clab-srv6-r1 ip -6 route show 2001:db8:3::3
 4. Чем лабораторная эмуляция Candidate Path отличается от production SR Policy?
 5. Что произойдёт со статическим `encap seg6` маршрутом при отказе r2-r3?
 
-## Требования к отчёту
+## Артефакты диагностики
 
 - Таблица всех SID, использованных в policy, с behavior и context.
 - Вывод kernel route с `encap seg6`.
@@ -320,7 +320,7 @@ $ docker exec clab-srv6-r1 ip -6 route show 2001:db8:3::3
 2. Сконфигурировать PCE (Path Computation Element) или статический Candidate Path.
 3. Использовать `show segment-routing srv6 policy` для верификации.
 
-Это тема для **ЛР12** (SR Policy через pathd/PCEP) при расширении топологии до 5 узлов.
+Это тема для **Сценарий 12** (SR Policy через pathd/PCEP) при расширении топологии до 5 узлов.
 
 ## Ссылки
 
