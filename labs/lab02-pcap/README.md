@@ -1,69 +1,69 @@
-# Захват трафика: tcpdump на хосте
+# Захват трафика: tcpdump
 
 **lab02** | ~30 мин
 
-Не нужно ставить tcpdump в контейнеры. Containerlab создаёт veth-пары — один конец
-в контейнере (там он `eth1`, `eth2`), второй конец на хосте. Захват на хосте видит всё,
-что проходит через линк.
+## Способ 1. С хоста (рекомендуемый)
 
-## Как найти veth нужного линка
+Containerlab создаёт veth-пары для каждого data-линка. Один конец — в контейнере (там
+это `eth1`/`eth2`), второй — на хосте. Узнайте имя хостового конца:
 
 ```bash
-# Все veth, созданные containerlab
-ip link | grep 'veth.*clab'
-
-# Какой veth соответствует линку r1 eth1 → r2
 containerlab inspect interfaces -t srv6.yml
 ```
 
-`containerlab inspect interfaces` покажет таблицу: узел, интерфейс, второй конец, MAC.
-В колонке «Host interface» — имя veth на хосте. Его и подставляйте в tcpdump.
-
-Если лень разбираться — tcpdump на хосте умеет фильтровать по MAC:
+В колонке «Host interface» будет имя veth (например `vethXXXX`). Подставьте в tcpdump:
 
 ```bash
-# MAC r1 на eth1 (узнайте через containerlab inspect interfaces)
-tcpdump -ni any ether host 02:xx:xx:xx:xx:xx
+tcpdump -ni vethXXXX icmp6
 ```
 
-## Основные команды
+Без `icmp6` в вывод попадёт IS-IS-трафик (Hello, LSP) — для ICMPv6-экспериментов фильтр
+обязателен.
+
+Обычный `ip link | grep veth` показывает **только mgmt-veth** — они все на бридже
+`br-*`. Их не используйте: это `eth0`, management-сеть.
+
+## Способ 2. Изнутри контейнера (если host-интерфейс неудобен)
+
+Поставьте tcpdump (образ на Alpine — `apk`, не `apt`):
 
 ```bash
-# ICMPv6 между r1 и r2
-tcpdump -ni vethXXX icmp6
-
-# Всё, что идёт через линк (ICMPv6 + IS-IS Hello + LSP)
-tcpdump -ni vethXXX
-
-# С MAC-адресами (-e)
-tcpdump -ni vethXXX -e
-
-# Подробный вывод (-v), с MAC (-e), только 5 пакетов (-c 5)
-tcpdump -ni vethXXX -e -v -c 5
-
-# Сохранить в pcap для Wireshark, без DNS-резолвинга (-n)
-tcpdump -ni vethXXX -n -w /tmp/link.pcap
+for n in r1 r2 r3; do
+  docker exec clab-srv6-$n apk add --no-cache tcpdump
+done
 ```
-
-## Фильтры
 
 ```bash
-tcpdump -ni vethXXX icmp6                           # только ICMPv6
-tcpdump -ni vethXXX ip6                             # любой IPv6
-tcpdump -ni vethXXX 'icmp6 and ip6[40] == 128'      # только Echo Request
-tcpdump -ni vethXXX 'icmp6 and ip6[40] == 129'      # только Echo Reply
-tcpdump -ni vethXXX 'host 2001:db8:12::1'           # от/к конкретному адресу
-tcpdump -ni vethXXX 'net 2001:db8:12::/64'          # трафик конкретной сети
-tcpdump -ni vethXXX proto 124                       # IS-IS (протокол 124)
+# ICMPv6 на линке r1→r2
+docker exec clab-srv6-r1 tcpdump -ni eth1 icmp6
 ```
 
-## Что искать в дампе
+## Полезные команды
 
-| Что видно                 | Как искать                       |
-|---------------------------|----------------------------------|
-| ICMPv6 Echo Request       | `icmp6`, строка `echo request`   |
-| ICMPv6 Echo Reply         | `icmp6`, строка `echo reply`     |
-| IS-IS Hello               | `proto 124`, dst `ff02::5`       |
-| IS-IS LSP                 | `proto 124`, большой пакет       |
-| IPv6 ND (Neighbor Discovery)| `icmp6`, type 135/136          |
-| Пакет с низким TTL        | `tcpdump -v`, `hlim 1`           |
+```bash
+# С MAC-адресами (-e), 10 пакетов (-c 10), без DNS (-n)
+tcpdump -ni eth1 -e -n -c 10
+
+# Сохранить в pcap для Wireshark
+tcpdump -ni eth1 -n -w /tmp/link.pcap icmp6
+
+# Транзит: захват на r2 eth2 при ping r1→r3
+docker exec clab-srv6-r2 tcpdump -ni eth2 icmp6 &
+docker exec clab-srv6-r1 ping6 -c 3 2001:db8:23::3
+
+# IS-IS Hello (протокол 124)
+tcpdump -ni eth1 proto 124
+
+# Только Echo Request (Type 128, байт 40 IPv6-заголовка)
+tcpdump -ni eth1 'icmp6 and ip6[40] == 128'
+```
+
+## Что видно в дампе
+
+| Трафик              | Фильтр               | Признак                 |
+|---------------------|----------------------|-------------------------|
+| ICMPv6 Echo Request | `icmp6`              | `echo request`          |
+| ICMPv6 Echo Reply   | `icmp6`              | `echo reply`            |
+| IS-IS Hello         | `proto 124`          | dst `ff02::5`           |
+| IS-IS LSP           | `proto 124`          | большой пакет (>1000B)  |
+| IPv6 ND             | `icmp6`              | type 135 (NS), 136 (NA) |
