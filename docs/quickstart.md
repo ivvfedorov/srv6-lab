@@ -1,6 +1,25 @@
 # Quickstart: SRv6 Lab
 
-Рабочая директория: `/home/ivvfedorov/srv6-lab`
+Команды ниже выполняются из корня репозитория.
+
+```bash
+pwd
+# .../srv6-lab
+```
+
+## Минимальный запуск
+
+```bash
+make deploy
+make verify
+```
+
+Эквивалент без `make`:
+
+```bash
+containerlab deploy -t srv6.yml
+containerlab exec -t srv6.yml --cmd "hostname; ip -6 -br addr; vtysh -c 'show isis neighbor'"
+```
 
 ## Топология
 
@@ -20,16 +39,14 @@ r1 (172.20.20.4) --- r2 (172.20.20.3) --- r3 (172.20.20.2)
 ## Развёртывание
 
 ```bash
-cd /home/ivvfedorov/srv6-lab
-
 # Первый запуск или после изменения srv6.yml
-containerlab deploy -t srv6.yml
+make deploy
 
 # Статус
-containerlab inspect -t srv6.yml
+make status
 
 # Удалить лабу (контейнеры и veth)
-containerlab destroy -t srv6.yml
+make clean
 ```
 
 После `deploy` FRR читает конфиги из `configs/r*/frr.conf` (bind-mount).
@@ -52,8 +69,7 @@ containerlab exec -t srv6.yml --cmd "hostname; ip -6 -br addr"
 ### Граф топологии (HTTP)
 
 ```bash
-cd /home/ivvfedorov/srv6-lab
-containerlab graph -t srv6.yml --srv 0.0.0.0:50080
+make graph
 ```
 
 Откройте в браузере: `http://<IP_хоста>:50080`
@@ -104,24 +120,19 @@ docker cp clab-srv6-r2:/tmp/lab.pcap ~/lab.pcap
 Применить на работающей лабе:
 
 ```bash
-cd /home/ivvfedorov/srv6-lab
-for r in r1 r2 r3; do
-  docker cp configs/srv6/$r/frr.conf clab-srv6-$r:/etc/frr/frr.conf
-  docker exec clab-srv6-$r chown frr:frr /etc/frr/frr.conf
-  docker exec clab-srv6-$r chgrp frrvty /etc/frr/frr.conf
-done
-containerlab exec -t srv6.yml --cmd "/usr/lib/frr/frrinit.sh restart"
+make srv6
 ```
 
 Или пересоздать лабу с bind-mount на srv6-конфиги (см. `labs/lab05-srv6-basic/README.md`).
 
 ## Программа обучения
 
-| Неделя | Тема | Лабораторные |
-|--------|------|--------------|
+| Блок | Тема | Лабораторные |
+|------|------|--------------|
 | 1 | Unix/Linux, Containerlab | [lab01](../labs/lab01-inspect/), [lab02](../labs/lab02-pcap/) |
 | 2 | FRR, netlink | [lab03](../labs/lab03-frr-zebra/), [lab04](../labs/lab04-netlink/) |
 | 3 | SRv6 | [lab05](../labs/lab05-srv6-basic/), [lab06](../labs/lab06-srv6-behaviors/), [lab07](../labs/lab07-srv6-troubleshoot/) |
 | 4 | VPP, DPDK, eBPF | [lab08](../labs/lab08-vpp/), [lab09](../labs/lab09-ebpf/) |
+| 5 | Advanced SRv6 | [lab10](../labs/lab10-srv6-policy/), [lab11](../labs/lab11-srv6-vpn/) |
 
-Подробнее: [cheatsheet.md](cheatsheet.md)
+Подробнее: [cheatsheet.md](cheatsheet.md), [lab-format.md](lab-format.md)

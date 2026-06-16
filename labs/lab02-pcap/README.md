@@ -6,6 +6,16 @@
 
 Установить tcpdump, захватить ICMPv6, разобрать Ethernet/IPv6/ICMPv6 в Wireshark.
 
+## Теория
+
+Packet capture показывает data plane таким, каким его видит интерфейс Linux. Для ICMPv6 Echo
+Request/Echo Reply в pcap нужно различать три уровня: Ethernet-кадр между соседними узлами,
+IPv6-заголовок между конечными адресами и ICMPv6-сообщение как полезную нагрузку.
+
+На transit-узле r2 MAC-адреса будут принадлежать соседям на конкретном линке, но IPv6 source
+и destination останутся адресами r1 и r3. Это ключевая разница между L2 next-hop forwarding
+и L3 end-to-end адресацией.
+
 ## Задания
 
 ### 1. Установка tcpdump

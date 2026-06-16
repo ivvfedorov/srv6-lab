@@ -6,9 +6,25 @@
 
 Включить SRv6 locators через IS-IS на r1—r2—r3, увидеть SID'ы в FRR и kernel.
 
+## Теория
+
+SRv6 использует IPv6-адрес как Segment Identifier (SID). Locator — это префикс, который
+доставляет пакет к нужному узлу, а function внутри SID определяет действие на этом узле:
+например, End/uN для обработки узлового SID или End.X/uA для перехода на конкретную adjacency.
+
+В этой лаборатории IS-IS анонсирует locator'ы, FRR создаёт SID, а `zebra` устанавливает
+соответствующие записи в kernel. Успешный ping сам по себе показывает только reachability;
+для доказательства SRv6 нужно дополнительно увидеть locator, SID и, где применимо, записи
+`seg6`/`seg6local` в Linux.
+
 ## Предусловия
 
-Базовая лаба с IS-IS (конфиги `configs/r*/frr.conf` после `containerlab deploy`).
+Базовая лаба с IS-IS:
+
+```bash
+make deploy
+make verify
+```
 
 ## Задания
 
@@ -23,9 +39,14 @@
 ### 2. Примените SRv6
 
 ```bash
-cd /home/ivvfedorov/srv6-lab
 chmod +x labs/lab05-srv6-basic/apply-srv6.sh
 ./labs/lab05-srv6-basic/apply-srv6.sh
+```
+
+Или короче:
+
+```bash
+make srv6
 ```
 
 Подождите ~30 с для convergence IS-IS.

@@ -15,12 +15,17 @@
 | iptables/nft | да | нет на fast path |
 | Типичное use | general purpose | NFV, telco, PE router |
 
+Linux kernel networking удобен для универсального хоста: маршруты видны через `ip route`,
+правила через nftables/iptables, процессы работают с обычными сокетами. VPP строит отдельный
+packet-processing graph в userspace и обрабатывает пакеты батчами. Это даёт высокую скорость,
+но требует другой модели диагностики: `vppctl show interface`, `show hardware`, `show ip fib`
+вместо привычных kernel-команд.
+
 ## Развёртывание отдельной лабы
 
 ```bash
-cd /home/ivvfedorov/srv6-lab
-containerlab deploy -t srv6-vpp.yml
-containerlab inspect -t srv6-vpp.yml
+make vpp
+make vpp-status
 ```
 
 Топология: `vpp1` ←eth1→ `host1` (10.0.0.0/24)
