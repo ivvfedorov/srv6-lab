@@ -26,16 +26,18 @@ IS-IS сходится, ping идёт — зачем тогда SRv6? Пробл
 на альтернативный линк нельзя без сложных трюков с метриками. SRv6 решает это через
 явный список инструкций в заголовке пакета.
 
-Ключевая метафора:
-- **Locator** — почтовый индекс города. Доставляет пакет к нужному узлу (r1, r2, r3).
-  В нашей лабе это `/64` префикс: `2001:db8:1::/64` для r1.
-- **Function** — инструкция курьеру внутри города. End (uN) — “принял, обработай”.
-  End.X (uA) — “не заходи внутрь, сразу выйди через конкретную дверь”.
+SRv6 SID = Locator + Function.
+- **Locator** — routable-префикс, анонсируемый через IGP. Аналог Node-SID в SR-MPLS:
+  доставляет пакет к узлу-владельцу SID. В нашей лабе это `/64` префикс:
+  `2001:db8:1::/64` для r1.
+- **Function** — поведение, которое узел выполняет при получении пакета с данным
+  Destination Address. End (uN) — аналог PHP (Penultimate Hop Popping) с обработкой
+  на узле. End.X (uA) — аналог Adjacency-SID в SR-MPLS.
 - **SID** = Locator + Function. `2001:db8:1:e000::` — это locator r1 + функция
   `e000` (End.X на eth1).
 
 Что ломается без SRv6? Ничего — IGP работает. Но вы не можете сказать пакету
-“иди через r2, потом через r4, потом к r3”. Только shortest path.
+«иди через r2, потом через r4, потом к r3». Только shortest path.
 
 Что ломается при `seg6_enabled=0` в kernel? Самое коварное: locator в FRR показывает
 `Up`, IS-IS соседи живы, SID видны — но пакет с SID в Destination Address дропается
@@ -44,7 +46,7 @@ IS-IS сходится, ping идёт — зачем тогда SRv6? Пробл
 ```text
 r1 locator 2001:db8:1::/64    r2 locator 2001:db8:2::/64
          \                      /
-    IS-IS анонсирует locator’ы → FRR создаёт SID → zebra ставит seg6local в kernel
+    IS-IS анонсирует locator'ы → FRR создаёт SID → zebra ставит seg6local в kernel
                               |
                    r3 locator 2001:db8:3::/64
 ```
@@ -55,6 +57,7 @@ r1 locator 2001:db8:1::/64    r2 locator 2001:db8:2::/64
 | Locator `Up` | FRR принял SRv6 locator | `show segment-routing srv6 locator` |
 | SID отображается | FRR создал SID behavior | `show segment-routing srv6 sid` |
 | `seg6`/`seg6local` виден | Kernel получил SRv6 dataplane state | `ip -6 route show table all` |
+
 ## Предусловия
 
 Базовая лаба с IPv6 + IS-IS без SRv6:
